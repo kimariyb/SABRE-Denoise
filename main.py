@@ -5,6 +5,7 @@ import torch.optim as optim
 import torch.nn.init as init
 
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from DataReader import *
 from SabreNet import *
@@ -14,15 +15,15 @@ from tqdm import tqdm
 
 # 生成数据集参数
 DATA_PATH = './data'
-NUMS = 2000
+NUMS = 200
 BATCH_SIZE = 32
 
 # 训练参数
-EPOCHS = 50
+EPOCHS = 20
 LR = 1e-3
-LR_DECAY = 0.95
+LR_DECAY = 0.8
 WEIGHT_DECAY = 1e-4
-WORKERS = 4
+WORKERS = 8
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' 
 
@@ -37,33 +38,25 @@ MODEL_PATH = './model'
 def train_func(model, optimizer, criterion, train_loader, device):
     # 训练模型
     model.train()
-    
     train_loss = 0.0
-    
-    for inputs, labels in tqdm(train_loader, desc='Training Epoch'):
         
+    for inputs, labels in tqdm(train_loader, desc='Training Epoch'):
         inputs = inputs.to(device).float()
         labels = labels.to(device).float()
-        
         # 梯度清零
         optimizer.zero_grad()
-        
         # 前向传播
         outputs = model(inputs)
-        
         # 计算损失
         loss = criterion(outputs, labels)
-        
         # 反向传播
         loss.backward()
-        
         # 优化器更新参数
         optimizer.step()
-        
         # 记录训练集损失和准确率
         train_loss += loss.item()
-    
-    # 计算平均损失和准确率
+
+    # 计算平均损失
     train_loss /= len(train_loader)
     
     return train_loss
@@ -72,21 +65,16 @@ def train_func(model, optimizer, criterion, train_loader, device):
 def val_func(model, criterion, val_loader, device):
     # 验证模型
     model.eval()
-    
     val_loss = 0.0
-    
+
     with torch.no_grad():
         for inputs, labels in val_loader:
-            
             inputs = inputs.to(device).float()
             labels = labels.to(device).float()
-            
             # 前向传播
             outputs = model(inputs)
-            
             # 计算损失
             loss = criterion(outputs, labels)
-            
             # 记录验证集损失和准确率
             val_loss += loss.item()
     
@@ -101,8 +89,8 @@ def main():
     print('===================== Generating data =====================')
     data_loader = DataReader(data_path=DATA_PATH)
     data = data_loader.generate_data(generated_num=NUMS)
-    # 分割数据集为训练集和验证集 7:3
-    train_data, val_data = data_loader.split_data(data, ratio=0.85)
+    # 分割数据集为训练集和验证集 9 : 1
+    train_data, val_data = data_loader.split_data(data, ratio=0.9)
     
     print('==================== Model initialization ====================')
     
@@ -124,10 +112,14 @@ def main():
     print('Device:', DEVICE)
     print('Model name:', MODEL_NAME)
     print('Model path:', MODEL_PATH)
-    
+        
     # 模型初始化
     model = SabreNet()
     model = model.to(DEVICE)
+    model = model.float()
+    
+    # 记录训练过程
+    writer = SummaryWriter(f'./runs/{MODEL_NAME}')
 
     # 优化器和损失函数
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -136,14 +128,10 @@ def main():
     
     # 参数初始化，使用 He    
     for m in model.modules():
-        if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        if isinstance(m, nn.Conv1d):
             init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
             if m.bias is not None:
-                init.constant_(m.bias, 0.0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant_(m.weight, 1.0)
-            init.constant_(m.bias, 0.0)
-    
+                init.zeros_(m.bias)
     
     # 开始训练模型
     print('===================== Start training =====================')
@@ -158,13 +146,15 @@ def main():
         scheduler.step()
         # 保存模型
         torch.save(model, f'{MODEL_PATH}/{MODEL_NAME} {epoch+1}.pth')
+        writer.add_scalars('Loss', {'train': train_loss, 'val': val_loss}, epoch+1) 
+    
+    writer.close()
     
     print('===================== Training finished =====================')
     
 
 
 if __name__ == '__main__':
-    
     try:
         start_time = time()
         main()

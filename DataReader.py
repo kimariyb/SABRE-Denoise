@@ -17,25 +17,26 @@ class NMSELoss(nn.Module):
     def __init__(self):
         super(NMSELoss, self).__init__()
 
-    def forward(self, input, target):
-        # 确保 input 和 target 的形状相同
-        if input.shape != target.shape:
-            raise ValueError("Input and target must have the same shape.")
+    def forward(self, x: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
+        # 检查输入类型
+        if not isinstance(x, torch.Tensor) or not isinstance(label, torch.Tensor):
+            raise ValueError("Input and label must be of type torch.Tensor")
+        
+        # 计算平方差
+        squared_difference = nn.functional.mse_loss(x, label, reduction='none')
+        
+        # 计算误差的 L2 范数
+        error_norm = torch.sqrt(torch.sum(squared_difference))
+        label_norm = torch.sqrt(torch.sum(label ** 2))
 
-        # 计算均方误差 (MSE)
-        mse = torch.mean((input - target) ** 2)
-
-        # 计算目标数据的方差
-        var_target = torch.var(target)
-
-        # 如果目标数据的方差为0，即所有值都相同，则NMSE为0
-        if var_target == 0:
-            return torch.tensor(0.0, dtype=torch.float32)
-
-        # 计算归一化均方误差 (NMSE)
-        nmse = mse / var_target
-
-        return nmse
+        # 错误处理：避免除以零
+        if label_norm.item() == 0:
+            return torch.tensor(float('inf'), device=x.device)  # 在相同设备上返回无穷大
+        
+        # 计算归一化均方误差
+        nmse = error_norm / label_norm
+        
+        return nmse.mean()
     
 
 class SaberDataset(Dataset): 
@@ -101,7 +102,6 @@ class DataReader:
         # output: (batch_size, 2, 8192, 1)
         data = data.unsqueeze(1)
         data = torch.cat ((data.real, data.imag), dim=-1).T
-        data = data.unsqueeze(2)
         
         return data
     

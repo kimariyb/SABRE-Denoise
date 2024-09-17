@@ -163,3 +163,6 @@ cython_debug/
 data/saber_data.gz
 
 SabreNet.onnx
+para_SabreNet.onnx
+
+model/
