@@ -1,4 +1,5 @@
 
+import gzip
 import os
 import glob
 import dill
@@ -9,7 +10,7 @@ import numpy as np
 
 from torch.utils.data import Dataset
 from scipy.signal import find_peaks
-
+from tqdm import tqdm
 
 class NMSELoss(nn.Module):
     def __init__(self):
@@ -55,7 +56,7 @@ class DataLoader:
                 
         return datas
 
-    def preprocess_data(self, data, noise_level=0.01):
+    def preprocess_data(self, data):
         # 预处理数据，缩放实部和虚部到 [-1, 1]
         max_abs_value = torch.max(torch.abs(data))
         data.real = data.real / max_abs_value
@@ -67,9 +68,18 @@ class DataLoader:
         end_index = peaks[-1]
         data = data[start_index-100:end_index-100]
         
-        # 加入随机权重的高斯白噪声
-        noise = torch.randn(data.shape) * noise_level
-        data = (data.real + noise) + (1j * (data.imag + noise))
+        return data
+    
+    
+    def add_noise(self, data, noise_level):
+        # 给复数数据加入随机的高斯噪声
+        data.real = data.real + torch.randn(data.shape) * noise_level
+        data.imag = data.imag + torch.randn(data.shape) * noise_level
+        
+        # 归一化到 [-1, 1]
+        max_abs_value = torch.max(torch.abs(data))
+        data.real = data.real / max_abs_value
+        data.imag = data.imag / max_abs_value
         
         return data
     
@@ -82,28 +92,39 @@ class DataLoader:
         
         return data
     
-    def save_data(self, save_path, generated_num):
+    def generate_data(self, generated_num):
         row_datas = self.load_data()
 
         data_list = []
         label_list = []
         
+        print('===================== Generating data =====================')
+        print('Generating data model, the number of data is %d' % (generated_num * len(row_datas)))
+        
         for row_data in row_datas:
-            for i in range(generated_num):
-                # 随机生成噪声等级
-                noise_level = np.random.uniform(0.005, 0.2)
-                preprocessed_data = self.preprocess_data(row_data, noise_level)
+            for i in tqdm(range(generated_num), desc='Generating data'):
                 # 转换数据维度 -> (batch_size, 1, 8192, 2)
-                preprocessed_data = self.convert_data(preprocessed_data)
-                data_list.append(preprocessed_data)
-                label_list.append(row_data)
+                label_data = self.convert_data(row_data)
+                label_list.append(label_data)
+                # 随机加入噪声
+                noise_level = np.random.uniform(0.05, 0.5)
+                noise_data = self.add_noise(row_data, noise_level)
+                noise_data = self.convert_data(noise_data)
+                data_list.append(noise_data)
         
-        # 保存数据
         saber_data = SaberDataset(data_list, label_list)
-        with open(save_path, 'wb') as f:
-            dill.dump(saber_data, f)
         
-        print('Data saved to', save_path)
+        print('================= Generating data finished =================')
+        
+        return saber_data
+    
+    
+    def save_data(self, data, save_path):
+        # 保存数据
+        with gzip.open(save_path, 'wb') as f:
+            dill.dump(data, f)
+        
+        print('Data saved to %s' % save_path)
         
 
 class SaberDataset(Dataset): 
@@ -120,8 +141,9 @@ class SaberDataset(Dataset):
 
 if __name__ == '__main__':
     data_path = './data'
-    save_path = './data/saber_data.pkl'
+    save_path = './data/saber_data.gz'
     
     data_loader = DataLoader(data_path)
-    data_loader.save_data(save_path, 4000)
+    data = data_loader.generate_data(2500)
+    print(data[0][0].shape)
     
