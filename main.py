@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from DataReader import *
 from SabreNet import *
 
+from time import time
+from tqdm import tqdm
 
 # 生成数据集参数
 DATA_PATH = './data'
@@ -38,7 +40,7 @@ def train_func(model, optimizer, criterion, train_loader, device):
     
     train_loss = 0.0
     
-    for inputs, labels in train_loader:
+    for inputs, labels in tqdm(train_loader, desc='Training Epoch'):
         
         inputs = inputs.to(device).float()
         labels = labels.to(device).float()
@@ -145,13 +147,13 @@ def main():
     
     # 开始训练模型
     print('===================== Start training =====================')
-    for epoch in tqdm(range(EPOCHS), desc='Epochs'):
+    for epoch in range(EPOCHS):
         # 训练模型
-        train_loss, train_acc = train_func(model, optimizer, criterion, train_loader, DEVICE)
+        train_loss = train_func(model, optimizer, criterion, train_loader, DEVICE)
         # 验证模型
-        val_loss, val_acc = val_func(model, criterion, val_loader, DEVICE)
+        val_loss = val_func(model, criterion, val_loader, DEVICE)
         # 打印训练集和验证集的损失和准确率
-        print(f'Epoch {epoch+1}/{EPOCHS} | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}')
+        print(f'Epoch {epoch+1}/{EPOCHS} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}')
         # 更新学习率
         scheduler.step()
         # 保存模型
@@ -159,8 +161,22 @@ def main():
     
     print('===================== Training finished =====================')
     
-    
 
 
 if __name__ == '__main__':
-    main()
+    
+    try:
+        start_time = time()
+        main()
+    except Exception as e:
+        print(f'Error occurred: {e}')
+    finally:
+        end_time = time()
+        elapsed_time = end_time - start_time
+
+        # 计算小时、分钟和秒
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        # 格式化输出
+        print(f'Running time: {int(hours):02}:{int(minutes):02}:{int(seconds):02}')
