@@ -23,7 +23,7 @@ EPOCHS = 20
 LR = 1e-3
 LR_DECAY = 0.8
 WEIGHT_DECAY = 1e-4
-WORKERS = 4
+WORKERS = 8
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' 
 
@@ -90,7 +90,7 @@ def main():
     data_loader = DataReader(data_path=DATA_PATH)
     data = data_loader.generate_data(generated_num=NUMS)
     # 分割数据集为训练集和验证集 9 : 1
-    train_data, val_data = data_loader.split_data(data, ratio=0.9)
+    train_data, val_data = data_loader.split_data(data, ratio=0.8)
     
     print('==================== Model initialization ====================')
     
@@ -119,7 +119,7 @@ def main():
     model = model.float()
     
     # 记录训练过程
-    writer = SummaryWriter(f'./runs/{MODEL_NAME}')
+    writer = SummaryWriter(f'./log')
 
     # 优化器和损失函数
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -132,7 +132,7 @@ def main():
             init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
             if m.bias is not None:
                 init.zeros_(m.bias)
-    
+
     # 开始训练模型
     print('===================== Start training =====================')
     for epoch in range(EPOCHS):
@@ -147,6 +147,8 @@ def main():
         # 保存模型
         torch.save(model, f'{MODEL_PATH}/{MODEL_NAME} {epoch+1}.pth')
         writer.add_scalars('Loss', {'train': train_loss, 'val': val_loss}, epoch+1) 
+        writer.add_scalar('Learning rate', optimizer.param_groups[0]['lr'], epoch+1)
+        writer.flush()
     
     writer.close()
     
@@ -156,6 +158,9 @@ def main():
 
 if __name__ == '__main__':
     try:
+        # 清除所有 cuda 缓存
+        torch.cuda.empty_cache()
+        # 开始计时
         start_time = time()
         main()
     except Exception as e:
@@ -169,4 +174,5 @@ if __name__ == '__main__':
         minutes, seconds = divmod(remainder, 60)
 
         # 格式化输出
-        print(f'Running time: {int(hours):02}:{int(minutes):02}:{int(seconds):02}')
+        print(f'The Total Running time: {int(hours):02}:{int(minutes):02}:{int(seconds):02}')
+        print('Thank you for using our program.')

@@ -5,38 +5,33 @@ import glob
 import dill
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from torch.utils.data import Dataset
 from scipy.signal import find_peaks
 from tqdm import tqdm
 
-
+    
 class NMSELoss(nn.Module):
     def __init__(self):
         super(NMSELoss, self).__init__()
 
-    def forward(self, x: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
-        # 检查输入类型
-        if not isinstance(x, torch.Tensor) or not isinstance(label, torch.Tensor):
-            raise ValueError("Input and label must be of type torch.Tensor")
+    def forward(self, x: torch.Tensor, label: torch.Tensor):
+        # 输入的维度实际上是一个 [batch_size, 2, 8192] 的张量
+        # 然而我们只需要第一个通道 （实部）的 NMSE 损失，所以只取第 0 维度的值
+        x = x[:, 0, :]  
+        label = label[:, 0, :]
         
-        # 计算平方差
-        squared_difference = nn.functional.mse_loss(x, label, reduction='none')
+        loss0 = nn.MSELoss(reduction='none')
+        squared_difference = loss0(x, label)
+        e = torch.sqrt(torch.sum(squared_difference))
+        f = torch.sqrt(torch.sum(torch.square(label)))
+        nmse = e/f
         
-        # 计算误差的 L2 范数
-        error_norm = torch.sqrt(torch.sum(squared_difference))
-        label_norm = torch.sqrt(torch.sum(label ** 2))
-
-        # 错误处理：避免除以零
-        if label_norm.item() == 0:
-            return torch.tensor(float('inf'), device=x.device)  # 在相同设备上返回无穷大
-        
-        # 计算归一化均方误差
-        nmse = error_norm / label_norm
-        
-        return nmse.mean()
+        return nmse
     
 
 class SaberDataset(Dataset): 
@@ -86,9 +81,18 @@ class DataReader:
     
     
     def add_noise(self, data, noise_level):
+        if noise_level == 'high':
+            scale = np.random.uniform(0.25, 0.5)   # 高噪声水平
+        elif noise_level == 'mid':
+            scale = np.random.uniform(0.05, 0.15)   # 中等噪声水平
+        elif noise_level == 'low':
+            scale = np.random.uniform(0.01, 0.05)  # 低噪声水平
+        else:
+            raise ValueError("Unknown noise level: Choose 'high', 'mid', or 'low'")
+        
         # 给复数数据加入随机的高斯噪声
-        data.real = data.real + torch.randn(data.shape) * noise_level
-        data.imag = data.imag + torch.randn(data.shape) * noise_level
+        data.real = data.real + torch.randn(data.shape) * scale
+        data.imag = data.imag + torch.randn(data.shape) * scale
         
         # 归一化到 [-1, 1]
         max_abs_value = torch.max(torch.abs(data))
@@ -99,7 +103,7 @@ class DataReader:
     
     def convert_data(self, data):
         # input: (batch_size, 8192, 1)
-        # output: (batch_size, 2, 8192, 1)
+        # output: (batch_size, 2, 8192)
         data = data.unsqueeze(1)
         data = torch.cat ((data.real, data.imag), dim=-1).T
         
@@ -115,11 +119,19 @@ class DataReader:
         
         for row_data in row_datas:
             for i in tqdm(range(generated_num), desc='Generating data'):
-                # 转换数据维度 -> (batch_size, 1, 8192, 2)
+                noise_level = None
+                # 将 generated_num 个数据 50% 的概率加入 high 噪声，
+                # 25% 的概率加入 mid 噪声， 25% 的概率加入 low 噪声
+                if i < generated_num * 0.5:
+                    noise_level = 'high'
+                elif i < generated_num * 0.75:
+                    noise_level ='mid'
+                else:
+                    noise_level = 'low'
+                # 转换数据维度 -> (batch_size, 2, 8192)
                 label_data = self.convert_data(row_data)
                 label_list.append(label_data)
                 # 随机加入噪声
-                noise_level = np.random.uniform(0.01, 1)
                 noise_data = self.add_noise(row_data, noise_level)
                 noise_data = self.convert_data(noise_data)
                 data_list.append(noise_data)
@@ -149,7 +161,13 @@ if __name__ == '__main__':
     save_path = './data/saber_data.gz'
     
     data_loader = DataReader(data_path)
-    data = data_loader.generate_data(2500)
-    print(len(data))
-    print(data[0][0])
+    data = data_loader.generate_data(100)
     
+    plot_data = data.data[0]
+    plot_label = data.label[0]
+
+    plt.subplot(2, 1, 1)
+    plt.plot(plot_data[0].numpy())
+    plt.subplot(2, 1, 2)
+    plt.plot(plot_label[0].numpy())
+    plt.show()

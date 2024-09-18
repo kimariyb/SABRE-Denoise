@@ -13,7 +13,7 @@ class TestDataReader(DataReader):
     def get_test_loader(self, batch_size=1, shuffle=False):
         test_data = self.load_data()
         for i in range(len(test_data)):
-            test_data[i] = self.add_noise(test_data[i], 0.1)
+            test_data[i] = self.add_noise(test_data[i], 'mid')
             test_data[i] = self.convert_data(test_data[i])
 
         test_dataset = TestDataset(test_data[0])
@@ -54,7 +54,10 @@ def test(model, test_loader):
     axs = fig.subplots(2, 1)
 
     axs[0].plot(denoised_data, color='red', label='denoised data')
-    axs[1].plot(noised_data,  color='blue', label='denoised data')
+    axs[1].plot(noised_data,  color='blue', label='noised data')
+    
+    axs[0].set_title('Denoised Data')
+    axs[1].set_title('Noised Data')
     
     plt.show()
     
@@ -62,7 +65,7 @@ def test(model, test_loader):
 if __name__ == '__main__':
     # 读取数据
     data_path = './data'
-    model_path = './model/SabreUNet 4.pth'
+    model_path = './model/SabreUNet 20.pth'
     test_loader = TestDataReader(data_path).get_test_loader(batch_size=1, shuffle=False)
     # 读取模型
     model = torch.load(model_path, map_location='cpu').float()

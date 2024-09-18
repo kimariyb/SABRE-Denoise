@@ -1,5 +1,3 @@
-
-import netron
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,12 +6,13 @@ import onnx
 from onnx import shape_inference
 
 class DownConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=15, padding=7, stride=1):
+    def __init__(self, in_channels, out_channels):
         super(DownConv, self).__init__()
         self.main = nn.Sequential(
-            nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Conv1d(in_channels, out_channels, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm1d(out_channels),
-            nn.LeakyReLU(negative_slope=0.01) 
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Dropout(0.5)
         )
 
     def forward(self, x):
@@ -21,12 +20,14 @@ class DownConv(nn.Module):
     
 
 class UpConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=5, padding=1, stride=2):
+    def __init__(self, in_channels, out_channels):
         super(UpConv, self).__init__()
         self.main = nn.Sequential(
-            nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.ConvTranspose1d(in_channels, out_channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv1d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm1d(out_channels),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True) 
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Dropout(0.5)
         )
     
     def forward(self, x):   
@@ -35,51 +36,49 @@ class UpConv(nn.Module):
 
 class SabreNet(nn.Module):
     # 输入数据：[batch, 2, 8192] 其中 2 为通道数
-    def __init__(self, in_channels=2, out_channels=2, features=[64, 128, 256]):
+    def __init__(self, in_channels=2, out_channels=2):
         super(SabreNet, self).__init__()
-        self.downs = nn.ModuleList()
-        self.ups = nn.ModuleList()
+        self.downs = nn.Sequential(
+            DownConv(in_channels=in_channels, out_channels=64),
+            DownConv(in_channels=64, out_channels=128),
+            DownConv(in_channels=128, out_channels=256),
+        )        
         
-        for feature in features:
-            self.downs.append(DownConv(in_channels, feature))
-            in_channels = feature
-
-        for feature in features[::-1]:
-            self.ups.append(UpConv(in_channels, feature))
-            self.ups.append(nn.Conv1d(feature*2, feature, kernel_size=1))
-            in_channels = feature
-            
-        self.bottleneck = nn.Sequential(
-            nn.Conv1d(features[-1], features[-1], kernel_size=15, padding=7, stride=1),
-            nn.BatchNorm1d(features[-1]),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True) 
+        self.middle = nn.Sequential(    
+            nn.Conv1d(in_channels=256, out_channels=512, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.Dropout(0.5)
         )
         
+        self.ups = nn.Sequential(
+            UpConv(in_channels=768, out_channels=256),
+            UpConv(in_channels=384, out_channels=128),
+            UpConv(in_channels=192, out_channels=64)
+        )
+
         self.out = nn.Sequential(
-            nn.Conv1d(features[0], out_channels, kernel_size=1),
+            nn.Conv1d(in_channels=64, out_channels=out_channels, kernel_size=1),
             nn.Tanh()
         )
         
-
     def forward(self, x):
-        skip_connections = []
+        skips = []
         for down in self.downs:
             x = down(x)
-            skip_connections.append(x)
+            skips.append(x)
         
-        x = self.bottleneck(x)
-        
-        for i in range(0, len(self.ups), 2):
-            x = self.ups[i](x)
-            skip_connection = skip_connections[-i//2-1]
-            if x.shape != skip_connection.shape:
-                x = F.interpolate(x, size=skip_connection.shape[2])
-            concat_skip = torch.cat((skip_connection, x), dim=1)
-            x = self.ups[i+1](concat_skip)
-            
-        return self.out(x)
+        x = self.middle(x)
+                    
+        for up, skip in zip(self.ups, reversed(skips)):
+            x = torch.cat((x, skip), dim=1)
+            x = up(x)
 
+        x = self.out(x)
         
+        return x
+
+
 if __name__ == '__main__':  
     model = SabreNet()
     input = torch.randn(1, 2, 8192)
