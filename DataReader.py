@@ -49,6 +49,20 @@ class SaberDataset(Dataset):
 class DataReader:
     def __init__(self, data_path):
         self.data_path = data_path
+        
+    def preprocess_data(self, data):
+        # 预处理数据，缩放实部和虚部到 [-1, 1]
+        max_abs_value = torch.max(torch.abs(data))
+        data.real = data.real / max_abs_value
+        data.imag = data.imag / max_abs_value
+        
+        # 找到数据中最右边的峰值，并从此峰值开始往左截取 8192 个数据点
+        peaks, _ = find_peaks(torch.abs(data), height=0.008)
+        start_index = peaks[-1] - 8192
+        end_index = peaks[-1]
+        data = data[start_index-100:end_index-100]
+        
+        return data
 
     def load_data(self): 
         datas = []
@@ -63,22 +77,7 @@ class DataReader:
             data = self.preprocess_data(data)
             datas.append(data)
                 
-        return datas
-
-    def preprocess_data(self, data):
-        # 预处理数据，缩放实部和虚部到 [-1, 1]
-        max_abs_value = torch.max(torch.abs(data))
-        data.real = data.real / max_abs_value
-        data.imag = data.imag / max_abs_value
-        
-        # 找到数据中最右边的峰值，并从此峰值开始往左截取 8192 个数据点
-        peaks, _ = find_peaks(torch.abs(data), height=0.008)
-        start_index = peaks[-1] - 8192
-        end_index = peaks[-1]
-        data = data[start_index-100:end_index-100]
-        
-        return data
-    
+        return datas  
     
     def add_noise(self, data, noise_level):
         if noise_level == 'high':
@@ -111,30 +110,20 @@ class DataReader:
     
     def generate_data(self, generated_num):
         row_datas = self.load_data()
-
-        data_list = []
-        label_list = []
         
         print('Generating data model, the number of data is %d' % (generated_num * len(row_datas)))
         
-        for row_data in row_datas:
-            for i in tqdm(range(generated_num), desc='Generating data'):
-                noise_level = None
-                # 将 generated_num 个数据 50% 的概率加入 high 噪声，
-                # 25% 的概率加入 mid 噪声， 25% 的概率加入 low 噪声
-                if i < generated_num * 0.5:
-                    noise_level = 'high'
-                elif i < generated_num * 0.75:
-                    noise_level ='mid'
-                else:
-                    noise_level = 'low'
-                # 转换数据维度 -> (batch_size, 2, 8192)
-                label_data = self.convert_data(row_data)
+        data_list = []
+        label_list = []
+        
+        for i in tqdm(range(generated_num)):
+            for row_data in row_datas:
+                label_data = self.convert_data(row_data.clone())
                 label_list.append(label_data)
-                # 随机加入噪声
-                noise_data = self.add_noise(row_data, noise_level)
-                noise_data = self.convert_data(noise_data)
-                data_list.append(noise_data)
+                # 加入噪声
+                noise_level = np.random.choice(['high','mid', 'low'])
+                noisy_data = self.add_noise(row_data.clone(), noise_level)
+                data_list.append(self.convert_data(noisy_data))
         
         saber_data = SaberDataset(data_list, label_list)
         
@@ -161,13 +150,15 @@ if __name__ == '__main__':
     save_path = './data/saber_data.gz'
     
     data_loader = DataReader(data_path)
-    data = data_loader.generate_data(100)
+    data = data_loader.generate_data(10)
     
-    plot_data = data.data[0]
-    plot_label = data.label[0]
+    plot_data = data.data[1]
+    plot_label = data.label[1]
 
     plt.subplot(2, 1, 1)
     plt.plot(plot_data[0].numpy())
+    plt.title('Data')
     plt.subplot(2, 1, 2)
     plt.plot(plot_label[0].numpy())
+    plt.title('label')
     plt.show()

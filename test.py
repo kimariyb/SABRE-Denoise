@@ -13,7 +13,7 @@ class TestDataReader(DataReader):
     def get_test_loader(self, batch_size=1, shuffle=False):
         test_data = self.load_data()
         for i in range(len(test_data)):
-            test_data[i] = self.add_noise(test_data[i], 'mid')
+            test_data[i] = self.add_noise(test_data[i], 'high')
             test_data[i] = self.convert_data(test_data[i])
 
         test_dataset = TestDataset(test_data[0])
