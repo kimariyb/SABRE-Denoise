@@ -119,7 +119,7 @@ class DataReader:
                 label_data = self.convert_data(row_data)
                 label_list.append(label_data)
                 # 随机加入噪声
-                noise_level = np.random.uniform(0.05, 0.5)
+                noise_level = np.random.uniform(0.01, 1)
                 noise_data = self.add_noise(row_data, noise_level)
                 noise_data = self.convert_data(noise_data)
                 data_list.append(noise_data)

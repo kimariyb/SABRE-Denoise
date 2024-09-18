@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 # 生成数据集参数
 DATA_PATH = './data'
-NUMS = 200
+NUMS = 2000
 BATCH_SIZE = 32
 
 # 训练参数
@@ -23,7 +23,7 @@ EPOCHS = 20
 LR = 1e-3
 LR_DECAY = 0.8
 WEIGHT_DECAY = 1e-4
-WORKERS = 8
+WORKERS = 4
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' 
 
