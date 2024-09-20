@@ -15,14 +15,14 @@ from tqdm import tqdm
 
 # 生成数据集参数
 DATA_PATH = './data'
-NUMS = 2000
+NUMS = 2500
 BATCH_SIZE = 32
 
 # 训练参数
-EPOCHS = 20
+EPOCHS = 50
 LR = 1e-3
 LR_DECAY = 0.8
-WEIGHT_DECAY = 1e-4
+WEIGHT_DECAY = 1e-5
 WORKERS = 8
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' 
@@ -90,7 +90,7 @@ def main():
     data_loader = DataReader(data_path=DATA_PATH)
     data = data_loader.generate_data(generated_num=NUMS)
     # 分割数据集为训练集和验证集 9 : 1
-    train_data, val_data = data_loader.split_data(data, ratio=0.8)
+    train_data, val_data = data_loader.split_data(data, ratio=0.9)
     
     print('==================== Model initialization ====================')
     

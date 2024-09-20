@@ -50,21 +50,21 @@ class DataReader:
     def __init__(self, data_path):
         self.data_path = data_path
         
-    def preprocess_data(self, data):
+    def preprocess_data(self, data, height=0.008):
         # 预处理数据，缩放实部和虚部到 [-1, 1]
         max_abs_value = torch.max(torch.abs(data))
         data.real = data.real / max_abs_value
         data.imag = data.imag / max_abs_value
         
         # 找到数据中最右边的峰值，并从此峰值开始往左截取 8192 个数据点
-        peaks, _ = find_peaks(torch.abs(data), height=0.008)
+        peaks, _ = find_peaks(torch.abs(data), height=height)
         start_index = peaks[-1] - 8192
         end_index = peaks[-1]
         data = data[start_index-100:end_index-100]
         
         return data
 
-    def load_data(self): 
+    def load_data(self, height=0.008): 
         datas = []
         files = os.path.join(self.data_path, '*.csv')
         files = sorted(glob.glob(files))
@@ -74,7 +74,7 @@ class DataReader:
             df = pd.read_csv(file, header=None, sep='\t').iloc[:, 1:]
             data = torch.complex(torch.tensor(df.iloc[:, 0].values), torch.tensor(df.iloc[:, 1].values))
             # 数据预处理
-            data = self.preprocess_data(data)
+            data = self.preprocess_data(data, height)
             datas.append(data)
                 
         return datas  
@@ -148,12 +148,13 @@ class DataReader:
 if __name__ == '__main__':
     data_path = './data'
     save_path = './data/saber_data.gz'
+    test_path = './test'
     
-    data_loader = DataReader(data_path)
+    data_loader = DataReader(test_path)
     data = data_loader.generate_data(10)
     
-    plot_data = data.data[1]
-    plot_label = data.label[1]
+    plot_data = data.data[0]
+    plot_label = data.label[0]
 
     plt.subplot(2, 1, 1)
     plt.plot(plot_data[0].numpy())

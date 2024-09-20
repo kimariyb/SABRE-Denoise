@@ -2,6 +2,11 @@ import torch
 import torch.nn
 import matplotlib.pyplot as plt
 
+import glob
+import os
+import pandas as pd
+
+from scipy.signal import find_peaks
 from torch.utils.data import Dataset, DataLoader
 from DataReader import DataReader
 
@@ -10,13 +15,23 @@ class TestDataReader(DataReader):
     def __init__(self, data_path):
         super().__init__(data_path)
         
-    def get_test_loader(self, batch_size=1, shuffle=False):
+    def get_true(self, batch_size=1, shuffle=False):
+        test_data = self.load_data(height=0.5)
+        for i in range(len(test_data)):
+            test_data[i] = self.convert_data(test_data[i])
+            
+        test_dataset = TestDataset(test_data[0])
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle)
+        
+        return test_loader
+        
+    def get_faker(self, batch_size=1, shuffle=False):
         test_data = self.load_data()
         for i in range(len(test_data)):
             test_data[i] = self.add_noise(test_data[i], 'high')
             test_data[i] = self.convert_data(test_data[i])
 
-        test_dataset = TestDataset(test_data[0])
+        test_dataset = TestDataset(test_data[1])
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle)
         
         return test_loader
@@ -64,9 +79,9 @@ def test(model, test_loader):
     
 if __name__ == '__main__':
     # 读取数据
-    data_path = './data'
-    model_path = './model/SabreUNet 20.pth'
-    test_loader = TestDataReader(data_path).get_test_loader(batch_size=1, shuffle=False)
+    data_path = './test'
+    model_path = './model/SabreUNet 50.pth'
+    test_loader = TestDataReader(data_path).get_true(batch_size=1, shuffle=False)
     # 读取模型
     model = torch.load(model_path, map_location='cpu').float()
     # 测试模型
