@@ -3,6 +3,7 @@ import torch
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
@@ -13,6 +14,10 @@ class NMRData:
     def __init__(self, raw, label):
         self.raw = raw
         self.label = label
+        
+        self.is_plot = False
+        if self.is_plot is True:
+            self.plot()
         
         # raw 和 label 的尺寸必须相同
         assert self.raw.shape == self.label.shape, "raw and label must have the same shape"
@@ -26,7 +31,13 @@ class NMRData:
     def __len__(self):
         return len(self.raw)
     
-
+    def plot(self):
+        plt.plot(self.raw.real, label='raw data')
+        plt.plot(self.label.real, label='label data')
+        plt.legend()
+        plt.show()
+  
+  
 class SABREDataset(Dataset):
     def __init__(self, root):
         self.root = root    
@@ -53,6 +64,8 @@ class SABREDataset(Dataset):
         csv_list = os.listdir(csv_dir)
         csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
         
+        csv_datas = []
+        
         # 处理数据，加入噪声
         for csv in csv_list:
             csv_path = os.path.join(csv_dir, csv)
@@ -61,33 +74,35 @@ class SABREDataset(Dataset):
                 torch.tensor(csv_data[:, 0], dtype=torch.float32),
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
-      
-            for i in tqdm(range(10)):
-                csv_data = self.split(csv_data)
+            csv_data = self.split(csv_data, height=0.008)
+            csv_datas.append(csv_data)
+            
+        # 生成数据
+        for i in tqdm(range(5000), desc="Generating data"):
+            for csv_data in csv_datas:
                 label_data = csv_data.clone()
                 
                 # 随机添加高斯噪声
                 noise_level = np.random.choice(['high','mid', 'low'])
                 raw_data = self.gauss_noise(csv_data.clone(), noise_level)
                 
-                data = NMRData(raw_data, label_data)
+                data = NMRData(raw=raw_data, label=label_data)
                 data_list.append(data)
-            
+   
         torch.save(data_list, self.processed_paths)
         
         
-    def split(self, data):
+    def split(self, data, height=0.008):
         data.real = data.real / torch.max(torch.abs(data.real))
         data.imag = data.imag / torch.max(torch.abs(data.imag))
         
-        peaks, _ = find_peaks(data.real, height=0.001)
+        peaks, _ = find_peaks(torch.abs(data), height=height)
         start_index = peaks[-1] - 8192
         end_index = peaks[-1]
         data = data[start_index-100:end_index-100]
-        
+
         return data      
 
-       
     def gauss_noise(self, data, noise_level):
         
         if noise_level == 'high':
@@ -102,8 +117,7 @@ class SABREDataset(Dataset):
         # 给复数数据加入随机的高斯噪声
         data.real = data.real + torch.randn(data.shape) * scale
         data.imag = data.imag + torch.randn(data.shape) * scale
-        print(data.real.shape,)
-        print(data.imag.shape,)
+
         # 归一化到 [-1, 1]
         data.real = data.real / torch.max(torch.abs(data.real))
         data.imag = data.imag / torch.max(torch.abs(data.imag))
@@ -128,9 +142,5 @@ class SABREDataset(Dataset):
     
 if __name__ == '__main__':
     dataset = SABREDataset(root=r'D:\project\SABRE-Denoise\data')
-
-    data = dataset.data
-    
-    # print(data[0]['raw'])
-        
-    # print(data[0]['label'])
+    print(len(dataset))
+    print(dataset[0])
