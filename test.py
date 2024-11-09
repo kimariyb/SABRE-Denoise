@@ -8,7 +8,7 @@ import pandas as pd
 
 from scipy.signal import find_peaks
 from torch.utils.data import Dataset, DataLoader
-from DataReader import DataReader
+from network.DataReader import DataReader
 
 
 class TestDataReader(DataReader):

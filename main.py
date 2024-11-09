@@ -7,8 +7,8 @@ import torch.nn.init as init
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from DataReader import *
-from SabreNet import *
+from network.DataReader import *
+from network.SabreNet import *
 
 from time import time
 from tqdm import tqdm
