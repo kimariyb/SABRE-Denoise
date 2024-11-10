@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch_lightning import LightningModule
 
-from network.sabre_net import create_model
+from network.sabre_net import create_model, load_model
 
 
 class SabreModel(LightningModule):
@@ -13,7 +13,12 @@ class SabreModel(LightningModule):
         super(SabreModel, self).__init__()
 
         self.save_hyperparameters(hparams)
-        self.model = create_model(self.hparams)
+        
+        if self.hparams.load_model:
+            self.model = load_model(self.hparams.load_model, args=self.hparams)
+        else:
+            self.model = create_model(self.hparams)
+            
         self._reset_losses_dict()
         
     def configure_optimizers(self):
