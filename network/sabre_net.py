@@ -2,7 +2,6 @@ import re
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from pytorch_lightning.utilities import rank_zero_warn
 
@@ -12,19 +11,36 @@ from network.sabre_decoder import DecoderCup, SegmentationHead
 
 # TODO: 实现 SabreNet
 class SabreNet(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=21843, zero_head=False, vis=False):
+    def __init__(
+        self,  
+        embedding_dim, 
+        ffn_embedding_dim, 
+        num_heads, 
+        num_layers, 
+        in_size, 
+        in_channels,
+        patches, 
+        dropout, 
+        attn_dropout, 
+        resnet,
+        decoder_channels, 
+        n_skip,
+        skip_channels,
+        num_classes, 
+        zero_head, 
+        vis
+    ):
         super(SabreNet, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
-        self.classifier = config.classifier
-        self.transformer = Transformer(config, img_size, vis)
-        self.decoder = DecoderCup(config)
+        self.transformer = Transformer(
+            vis, embedding_dim, ffn_embedding_dim, ...)
+        self.decoder = DecoderCup(embedding_dim, decoder_channels, n_skip, skip_channels)
         self.segmentation_head = SegmentationHead(
-            in_channels=config['decoder_channels'][-1],
-            out_channels=config['n_classes'],
+            in_channels=decoder_channels,
+            out_channels=num_classes,
             kernel_size=3,
         )
-        self.config = config
 
     def forward(self, x):
         if x.size()[1] == 1:

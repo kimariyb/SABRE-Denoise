@@ -90,8 +90,7 @@ class SabreModel(LightningModule):
             
             self.log_dict(result_dict, sync_dist=True)
             
-        self._reset_losses_dict()
-        
+        self._reset_losses_dict()  
         
     def _reset_losses_dict(self):
         self.losses = {
