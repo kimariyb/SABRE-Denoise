@@ -5,8 +5,8 @@ import torch.nn as nn
 
 from pytorch_lightning.utilities import rank_zero_warn
 
-from network.sabre_encoder import Transformer
-from network.sabre_decoder import DecoderCup, SegmentationHead
+from TransUNet.encoder import Transformer
+from TransUNet.decoder import DecoderCup, SpectralDeNoiseHead
 
 
 # TODO: 实现 SabreNet
@@ -36,7 +36,7 @@ class SabreNet(nn.Module):
         self.transformer = Transformer(
             vis, embedding_dim, ffn_embedding_dim, ...)
         self.decoder = DecoderCup(embedding_dim, decoder_channels, n_skip, skip_channels)
-        self.segmentation_head = SegmentationHead(
+        self.segmentation_head = SpectralDeNoiseHead(
             in_channels=decoder_channels,
             out_channels=num_classes,
             kernel_size=3,

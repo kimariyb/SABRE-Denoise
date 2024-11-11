@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch_lightning import LightningModule
 
-from network.sabre_net import create_model, load_model
+from TransUNet.model import create_model, load_model
 
 
 class SabreModel(LightningModule):

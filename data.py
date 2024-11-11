@@ -3,7 +3,7 @@ import random
 from torch.utils.data import Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 
-from network.sabre_dataset import SABREDataset
+from TransUNet.dataset import SABREDataset
 
 
 class SabreDataModule(LightningDataModule):
