@@ -267,16 +267,16 @@ class TestTransformer:
     def __init__(self):
         # 设置超参数
         self.vis = False
-        self.embedding_dim = 768
-        self.ffn_embedding_dim = 3072
+        self.embedding_dim = 256
+        self.ffn_embedding_dim = 1024
         self.num_heads = 12
         self.num_layers = 6
-        self.patch_size = 16
+        self.patch_size = 32
         self.seq_length = 8192
         self.dropout = 0.1
         self.attn_dropout = 0.1
-        self.in_channels = 3  # 假设输入是 RGB 图像
-        self.block_units = [2, 2, 2, 2]  # 每个层块的单位数
+        self.in_channels = 2  # 假设输入是 RGB 图像
+        self.block_units = [2, 2, 2]  # 每个层块的单位数
         
         # 创建 Transformer 实例
         self.model = Transformer(
