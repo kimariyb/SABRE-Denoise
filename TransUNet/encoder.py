@@ -4,7 +4,7 @@ import copy
 import torch
 import torch.nn as nn
 
-from TransUNet.skip import ResNet
+from resnet import ResNet
 
 
 class Attention(nn.Module):
@@ -86,7 +86,7 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, embedding_dim)
         self.act_fn = nn.GELU()
-        self.dropout = nn.Linear(dropout)
+        self.dropout = nn.Dropout(dropout)
 
         self.reset_parameters()
 
@@ -114,22 +114,17 @@ class Embeddings(nn.Module):
         seq_length,
         patch_size,
         in_channels,
-        resnet, 
+        block_units, 
     ):
         super(Embeddings, self).__init__()
-        
-        self.hybrid = None
-
+                
         self.embedding_dim = embedding_dim
         self.seq_length = seq_length
         self.patch_size = patch_size
         self.n_patches = self.seq_length // self.patch_size
         self.in_channels = in_channels
 
-        # TODO: Add support for hybrid model
-        if self.hybrid:
-            self.hybrid_model = ResNet(block_units=resnet.num_layers, width_factor=resnet.width_factor)
-            in_channels = self.hybrid_model.width * 16
+        self.resnet = ResNet(block_units=block_units, length=seq_length)
             
         self.patch_embeddings = nn.Conv1d(
             in_channels=self.in_channels, 
@@ -144,11 +139,8 @@ class Embeddings(nn.Module):
 
 
     def forward(self, x):
-        if self.hybrid:
-            x, features = self.hybrid_model(x)
-        else:
-            features = None
-        
+        x, features = self.resnet(x)
+   
         # (batch_size, in_channels, seq_length) -> (batch_size, hidden_size, n_patches)
         x = self.patch_embeddings(x) 
         x = x.transpose(1, 2)  # (B, n_patches, hidden_size)
@@ -242,7 +234,7 @@ class Transformer(nn.Module):
         dropout,
         attn_dropout,
         in_channels,
-        resnet,
+        block_units,
     ):
         super(Transformer, self).__init__()
         self.embeddings = Embeddings(
@@ -251,7 +243,7 @@ class Transformer(nn.Module):
             seq_length=seq_length,
             patch_size=patch_size,
             in_channels=in_channels,
-            resnet=resnet,
+            block_units=block_units,
         )
          
         self.encoder = Encoder(
@@ -269,3 +261,53 @@ class Transformer(nn.Module):
         encoded, attn_weights = self.encoder(embedding_output)  # (B, n_patch, hidden)
         
         return encoded, attn_weights, features
+    
+
+class TestTransformer:
+    def __init__(self):
+        # 设置超参数
+        self.vis = False
+        self.embedding_dim = 768
+        self.ffn_embedding_dim = 3072
+        self.num_heads = 12
+        self.num_layers = 6
+        self.patch_size = 16
+        self.seq_length = 8192
+        self.dropout = 0.1
+        self.attn_dropout = 0.1
+        self.in_channels = 3  # 假设输入是 RGB 图像
+        self.block_units = [2, 2, 2, 2]  # 每个层块的单位数
+        
+        # 创建 Transformer 实例
+        self.model = Transformer(
+            vis=self.vis,
+            embedding_dim=self.embedding_dim,
+            ffn_embedding_dim=self.ffn_embedding_dim,
+            num_heads=self.num_heads,
+            num_layers=self.num_layers,
+            patch_size=self.patch_size,
+            seq_length=self.seq_length,
+            dropout=self.dropout,
+            attn_dropout=self.attn_dropout,
+            in_channels=self.in_channels,
+            block_units=self.block_units,
+        )
+    
+    def test_forward(self):
+        # 创建一个随机输入张量 (batch_size, channels, length)
+        batch_size = 1
+        input_tensor = torch.randn(batch_size, self.in_channels, self.seq_length)
+
+        # 前向传播
+        encoded, attn_weights, features = self.model(input_tensor)
+
+        # 打印结果形状
+        print(f"Encoded shape: {encoded.shape}")
+        print(f"Attention weights shape: {len(attn_weights)}")
+        if attn_weights:
+            print(f"Attention weights first layer shape: {attn_weights[0].shape}")
+        print(f"Features shape: {features.shape if features is not None else 'None'}")
+
+if __name__ == "__main__":
+    tester = TestTransformer()
+    tester.test_forward()
