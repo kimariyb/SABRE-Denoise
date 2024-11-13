@@ -1,0 +1,287 @@
+import math
+import copy
+
+import torch
+import torch.nn as nn
+
+from einops import rearrange, repeat
+
+from conv_model import ResNet
+
+
+class PatchEmbedding(nn.Module):
+    def __init__(
+        self,
+        seq_length: int,
+        in_channels: int,
+        patch_size: int,
+        embedding_dim: int,
+        dropout: float,
+    ):
+        super(PatchEmbedding, self).__init__()
+        
+        self.seq_length = seq_length
+        self.in_channels = in_channels
+        self.patch_size = patch_size
+        self.patch_num = self.seq_length // self.patch_size 
+
+        self.embedding_dim = embedding_dim
+        
+        self.resnet = ResNet(length_factor=1, num_layers=3)
+        
+        self.patch_embeddings = nn.Conv1d(in_channels, embedding_dim, kernel_size=patch_size, stride=patch_size)
+        self.position_embeddings = nn.Parameter(torch.zeros(1, self.patch_num, self.embedding_dim))
+        
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x):
+        x, features = self.resnet(x)
+        
+        x = self.patch_embeddings(x)
+        x = x.transpose(1, 2)
+        
+        embeddings = x + self.position_embeddings
+        embeddings = self.dropout(embeddings)
+
+        return embeddings, features
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(
+        self, 
+        vis: bool,
+        num_heads: int,
+        embedding_dim: int,
+        attn_dropout: float,
+    ):
+        super(MultiHeadAttention, self).__init__()
+        self.vis = vis
+        self.embedding_dim = embedding_dim
+        self.num_heads = num_heads
+        self.head_dim = self.embedding_dim // self.num_heads
+
+        self.query = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.key = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.value =nn. Linear(self.embedding_dim, self.embedding_dim)
+
+        self.out = nn.Linear(self.embedding_dim, self.embedding_dim)
+        
+        self.attn_dropout = nn.Dropout(attn_dropout)
+        self.proj_dropout = nn.Dropout(attn_dropout)
+
+        self.softmax = nn.Softmax(dim=-1)
+        
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.query.weight)
+        nn.init.xavier_uniform_(self.key.weight)
+        nn.init.xavier_uniform_(self.value.weight)
+        nn.init.xavier_uniform_(self.out.weight)
+        nn.init.normal_(self.query.bias, std=1e-6)
+        nn.init.normal_(self.key.bias, std=1e-6)
+        nn.init.normal_(self.value.bias, std=1e-6)
+        nn.init.normal_(self.out.bias, std=1e-6)    
+        
+    
+    def forward(self, x):
+        q = rearrange(
+            self.query(x), "b n (h d) -> b h n d", h=self.num_heads
+        )
+        k = rearrange(
+            self.key(x), "b n (h d) -> b h n d", h=self.num_heads
+        )
+        v = rearrange(
+            self.value(x), "b n (h d) -> b h n d", h=self.num_heads
+        )
+
+        attention_scores = torch.matmul(q, k.transpose(-1, -2))
+        attention_scores = attention_scores / math.sqrt(self.head_dim)
+        attention_probs = self.softmax(attention_scores)
+        weights = attention_probs if self.vis else None
+        attention_probs = self.attn_dropout(attention_probs)
+
+        context_layer = torch.matmul(attention_probs, v)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.embedding_dim,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+        attention_output = self.out(context_layer)
+        attention_output = self.proj_dropout(attention_output)
+        
+        return attention_output, weights
+    
+    
+class MLP(nn.Module):
+    def __init__(
+        self,
+        embedding_dim: int,
+        ffn_embedding_dim: int,
+        dropout: float,
+    ):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(embedding_dim, ffn_embedding_dim)
+        self.fc2 = nn.Linear(ffn_embedding_dim, embedding_dim)
+        self.act_fn = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.fc1.weight)
+        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.normal_(self.fc1.bias, std=1e-6)
+        nn.init.normal_(self.fc2.bias, std=1e-6)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act_fn(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        x = self.dropout(x)
+        
+        return x
+    
+    
+class TransformerBlock(nn.Module):
+    def __init__(
+        self, 
+        vis,
+        embedding_dim, 
+        ffn_embedding_dim,
+        num_heads,
+        dropout,
+        attn_dropout
+    ):
+        super(TransformerBlock, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.attention_norm = nn.LayerNorm(embedding_dim, eps=1e-6)
+        self.ffn_norm = nn.LayerNorm(embedding_dim, eps=1e-6)
+        self.ffn = MLP(embedding_dim, ffn_embedding_dim, dropout)
+        self.attn = MultiHeadAttention(vis, num_heads, embedding_dim, attn_dropout)
+        
+    def init_weights(self):
+        self.ffn.reset_parameters()
+        self.attn.reset_parameters()
+
+    def forward(self, x):
+        h = x
+        x = self.attention_norm(x)
+        x, weights = self.attn(x)
+        x = x + h
+        
+        h = x
+        x = self.ffn_norm(x)
+        x = self.ffn(x)
+        x = x + h
+        
+        return x, weights
+
+            
+class TransUNetEncoder(nn.Module):
+    def __init__(
+        self, 
+        vis,
+        embedding_dim,
+        ffn_embedding_dim,
+        num_heads,
+        num_layers,
+        dropout,
+        attn_dropout,
+    ):
+        super(TransUNetEncoder, self).__init__()
+        self.vis = vis
+        self.layer = nn.ModuleList()
+        self.encoder_norm = nn.LayerNorm(embedding_dim, eps=1e-6)
+        for _ in range(num_layers):
+            layer = TransformerBlock(vis, embedding_dim, ffn_embedding_dim, num_heads, dropout, attn_dropout)
+            self.layer.append(copy.deepcopy(layer))
+
+    def forward(self, x):
+        attn_weights = []
+        
+        for layer_block in self.layer:
+            x, weights = layer_block(x)
+            if self.vis:
+                attn_weights.append(weights)
+                
+        encoded = self.encoder_norm(x)
+        
+        return encoded, attn_weights
+
+
+class Transformer(nn.Module):
+    def __init__(
+        self, 
+        vis, 
+        seq_length,
+        in_channels,
+        embedding_dim,
+        ffn_embedding_dim,
+        num_heads,
+        num_layers,
+        patch_size,
+        dropout,
+        attn_dropout,
+    ):
+        super(Transformer, self).__init__()
+        
+        self.embeddings = PatchEmbedding(
+            seq_length=seq_length,
+            in_channels=in_channels,
+            embedding_dim=embedding_dim, 
+            patch_size=patch_size,
+            dropout=dropout,
+        )
+         
+        self.encoder = TransUNetEncoder(
+            vis=vis, 
+            embedding_dim=embedding_dim, 
+            ffn_embedding_dim=ffn_embedding_dim, 
+            num_heads=num_heads, 
+            num_layers=num_layers,
+            dropout=dropout, 
+            attn_dropout=attn_dropout, 
+         )
+
+    def forward(self, x):  
+        x, features = self.embeddings(x)
+        
+        encoded, attn_weights = self.encoder(x)  # (B, n_patch, hidden)
+        
+        return encoded, attn_weights, features
+    
+
+class TestTransformer:
+    def __init__(self, transformer):
+        self.transformer = transformer
+
+    def run_test(self):
+        x = torch.randn(1, 2, 8192)  # 随机输入
+
+        encoded, attn_weights, features = self.transformer(x)
+
+        # 打印输出的形状
+        print("Encoded shape:", encoded.shape)
+        print("Attention weights shape:", attn_weights[0].shape)
+        
+
+# 测试 Transformer 类
+if __name__ == "__main__":
+    # 初始化 Transformer 参数
+    vis = True  # 根据实际需要初始化
+    seq_length = 512
+    in_channels = 1024
+    embedding_dim = 1024
+    ffn_embedding_dim = 2048
+    num_heads = 16
+    num_layers = 12
+    patch_size = 32
+    dropout = 0.1
+    attn_dropout = 0.1
+    
+    # 创建 Transformer 实例
+    transformer = Transformer(vis, seq_length, in_channels, embedding_dim, ffn_embedding_dim, num_heads, num_layers, patch_size, dropout, attn_dropout)
+
+    # 运行测试
+    test_transformer = TestTransformer(transformer)
+    test_transformer.run_test()

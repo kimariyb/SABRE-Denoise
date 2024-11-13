@@ -5,8 +5,8 @@ import torch.nn as nn
 
 from pytorch_lightning.utilities import rank_zero_warn
 
-from TransUNet.encoder import Transformer
-from TransUNet.decoder import DecoderCup, SpectralDeNoiseHead
+from TransUNet.encoder_model import Transformer
+from TransUNet.decoder_model import DecoderCup, SpectralDeNoiseHead
 
 
 # TODO: 实现 SabreNet
