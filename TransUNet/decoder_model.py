@@ -3,8 +3,6 @@ import torch.nn as nn
 
 from torch.nn import functional as F
 
-import numpy as np
-
 
 class UpsamplingBilinear1d(nn.Module):
     def __init__(self, scale_factor):
@@ -46,13 +44,6 @@ class DecoderBlock(nn.Module):
         return x
     
 
-class SpectralDeNoiseHead(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size=3, upsampling=1):
-        conv1d = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
-        upsampling = UpsamplingBilinear1d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
-        super().__init__(conv1d, upsampling)
-
-# TODO: 将 DecoderCup 处理为一维卷积
 class DecoderCup(nn.Module):
     def __init__(
         self,
@@ -80,7 +71,6 @@ class DecoderCup(nn.Module):
             skip_channels = self.skip_channels
             for i in range(4-self.n_skip):  # re-select the skip channels according to n_skip
                 skip_channels[3-i]=0
-
         else:
             skip_channels=[0,0,0,0]
 
@@ -90,18 +80,19 @@ class DecoderCup(nn.Module):
         
         self.blocks = nn.ModuleList(blocks)
 
-    def forward(self, hidden_states, features=None):
-        # reshape from (B, n_patch, hidden) to (B, h, w, hidden)
-        B, n_patch, hidden = hidden_states.size()  
-        w = int(np.sqrt(n_patch))
-        x = hidden_states.permute(0, 2, 1)
-        x = x.contiguous().view(B, hidden, w)
-        x = self.conv_more(x)
+    def forward(self, x, features=None):
+        # reshape from (B, n_patch, hidden) to (B, hidden, n_patch)
+        B, n_patch, hidden = x.size()  
+        y = x.contiguous().view(B, hidden, n_patch)
+        y = self.conv_more(y)
+        
         for i, decoder_block in enumerate(self.blocks):
             if features is not None:
                 skip = features[i] if (i < self.n_skip) else None
             else:
                 skip = None
-            x = decoder_block(x, skip=skip)
+            y = decoder_block(y, skip=skip)
             
-        return x
+        return y
+    
+

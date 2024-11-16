@@ -4,7 +4,7 @@ import copy
 import torch
 import torch.nn as nn
 
-from einops import rearrange, repeat
+from einops import rearrange
 
 from conv_model import ResNet
 
@@ -27,18 +27,24 @@ class PatchEmbedding(nn.Module):
 
         self.embedding_dim = embedding_dim
         
-        self.resnet = ResNet(length_factor=1, num_layers=3)
+        self.resnet = ResNet()
         
-        self.patch_embeddings = nn.Conv1d(in_channels, embedding_dim, kernel_size=patch_size, stride=patch_size)
+        self.patch_embeddings = nn.Conv1d(self.in_channels, self.embedding_dim, kernel_size=self.patch_size, stride=self.patch_size)
         self.position_embeddings = nn.Parameter(torch.zeros(1, self.patch_num, self.embedding_dim))
         
         self.dropout = nn.Dropout(dropout)
         
-    def forward(self, x):
-        x, features = self.resnet(x)
+    def init_weights(self):
+        nn.init.xavier_uniform_(self.patch_embeddings.weight)
+        nn.init.xavier_uniform_(self.position_embeddings)
+        nn.init.normal_(self.patch_embeddings.bias, std=1e-6)
+        nn.init.normal_(self.position_embeddings, std=0.02)
         
-        x = self.patch_embeddings(x)
-        x = x.transpose(1, 2)
+    def forward(self, x):
+        x, features = self.resnet(x) # (B, C , L)
+                
+        x = self.patch_embeddings(x) # (B, C, L) -> (B, D, N)
+        x = x.transpose(1, 2) # (B, D, N) -> (B, N, D)
         
         embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
@@ -87,7 +93,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x):
         q = rearrange(
             self.query(x), "b n (h d) -> b h n d", h=self.num_heads
-        )
+        ) 
         k = rearrange(
             self.key(x), "b n (h d) -> b h n d", h=self.num_heads
         )
@@ -158,7 +164,7 @@ class TransformerBlock(nn.Module):
         self.ffn_norm = nn.LayerNorm(embedding_dim, eps=1e-6)
         self.ffn = MLP(embedding_dim, ffn_embedding_dim, dropout)
         self.attn = MultiHeadAttention(vis, num_heads, embedding_dim, attn_dropout)
-        
+                
     def init_weights(self):
         self.ffn.reset_parameters()
         self.attn.reset_parameters()
@@ -262,17 +268,16 @@ class TestTransformer:
 
         # 打印输出的形状
         print("Encoded shape:", encoded.shape)
-        print("Attention weights shape:", attn_weights[0].shape)
-        
+        print("Features:", features)
 
 # 测试 Transformer 类
 if __name__ == "__main__":
     # 初始化 Transformer 参数
     vis = True  # 根据实际需要初始化
     seq_length = 512
-    in_channels = 1024
-    embedding_dim = 1024
-    ffn_embedding_dim = 2048
+    in_channels = 64
+    embedding_dim = 2048
+    ffn_embedding_dim = 4096
     num_heads = 16
     num_layers = 12
     patch_size = 32

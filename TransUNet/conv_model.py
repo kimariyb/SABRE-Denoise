@@ -56,7 +56,7 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
         
-        self.gn1 = nn.GroupNorm(32, mid_channels, eps=1e-6)
+        self.gn1 = nn.GroupNorm(4, mid_channels, eps=1e-6)
 
         # 3x3 卷积层
         self.conv2 = StdConv1d(
@@ -68,7 +68,7 @@ class PreActBottleneck(nn.Module):
             bias=False
         )  
 
-        self.gn2 = nn.GroupNorm(32, mid_channels, eps=1e-6)
+        self.gn2 = nn.GroupNorm(4, mid_channels, eps=1e-6)
         
         # 1x1 卷积层
         self.conv3 = StdConv1d(
@@ -80,7 +80,7 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
 
-        self.gn3 = nn.GroupNorm(32, out_channels, eps=1e-6)
+        self.gn3 = nn.GroupNorm(4, out_channels, eps=1e-6)
         
         self.relu = nn.ReLU(inplace=True)
         
@@ -128,15 +128,15 @@ class PreActBottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, length_factor=1, num_layers=3):
+    def __init__(self, length=4, num_layers=3):
         super().__init__()
 
-        self.length = int(64 * length_factor)
+        self.length = length
         self.block_units = [num_layers, num_layers, num_layers]
 
         self.root = nn.Sequential(
             StdConv1d(2, self.length, kernel_size=7, stride=2, padding=3, bias=False),
-            nn.GroupNorm(32, self.length, eps=1e-6),
+            nn.GroupNorm(4, self.length, eps=1e-6),
             nn.ReLU(inplace=True),
         )
 
@@ -166,11 +166,9 @@ class ResNet(nn.Module):
         
         for i in range(len(self.body) - 1):
             x = self.body[i](x)
-
             right_size = int(in_size / 4 / (i + 1))
+            
             if x.size()[2] != right_size:
-                pad = right_size - x.size()[2]
-                assert pad < 3 and pad > 0, "x {} should {}".format(x.size(), right_size)
                 feat = torch.zeros((b, x.size()[1], right_size), device=x.device)
                 feat[:, :, 0:x.size()[2]] = x[:]
             else:
@@ -184,8 +182,8 @@ class ResNet(nn.Module):
 
 
 class TestResNet:
-    def __init__(self, block_units, width_factor):
-        self.model = ResNet(width_factor, block_units)
+    def __init__(self):
+        self.model = ResNet()
 
     def test_forward(self):
         # 创建一个随机输入张量，形状为 (batch_size, channels, length)
@@ -208,9 +206,7 @@ class TestResNet:
 
 # 使用示例
 if __name__ == "__main__":
-    block_units = [2, 2, 2]  # 每个 block 中的bottleneck单元数量
-    width_factor = 1  # 宽度因子
-    test_resnet = TestResNet(block_units, width_factor)
+    test_resnet = TestResNet()
     test_resnet.test_forward()
 
             
