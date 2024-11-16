@@ -42,7 +42,6 @@ class PatchEmbedding(nn.Module):
         
     def forward(self, x):
         x, features = self.resnet(x) # (B, C , L)
-                
         x = self.patch_embeddings(x) # (B, C, L) -> (B, D, N)
         x = x.transpose(1, 2) # (B, D, N) -> (B, N, D)
         
@@ -201,6 +200,12 @@ class TransUNetEncoder(nn.Module):
         for _ in range(num_layers):
             layer = TransformerBlock(vis, embedding_dim, ffn_embedding_dim, num_heads, dropout, attn_dropout)
             self.layer.append(copy.deepcopy(layer))
+            
+        self.init_weights()
+            
+    def init_weights(self):
+        for layer in self.layer:
+            layer.init_weights()
 
     def forward(self, x):
         attn_weights = []
@@ -248,6 +253,10 @@ class Transformer(nn.Module):
             dropout=dropout, 
             attn_dropout=attn_dropout, 
          )
+        
+    def init_weights(self):  
+        self.embeddings.init_weights()
+        self.encoder.init_weights()
 
     def forward(self, x):  
         x, features = self.embeddings(x)

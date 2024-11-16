@@ -33,14 +33,31 @@ class DecoderBlock(nn.Module):
         )
         
         self.up = UpsamplingBilinear1d(scale_factor=2)
+        
+        self.reset_parameters()
+        
+    def reset_parameters(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x, skip=None):
         x = self.up(x)
+    
+        print(x.shape, skip.shape)
+
+    
         if skip is not None:
             x = torch.cat([x, skip], dim=1)
+        
+        print(x.shape)
+
         x = self.conv1(x)
         x = self.conv2(x)
-        
+        print(x.shape)
         return x
     
 
@@ -49,7 +66,6 @@ class DecoderCup(nn.Module):
         self,
         embedding_dim,
         decoder_channels,
-        n_skip,
         skip_channels,
     ):
         super().__init__()
@@ -64,8 +80,8 @@ class DecoderCup(nn.Module):
         self.in_channels = [self.head_channels] + list(self.decoder_channels[:-1])
         self.out_channels = self.decoder_channels
         
-        self.n_skip = n_skip
         self.skip_channels = skip_channels
+        self.n_skip = len(self.skip_channels)
 
         if self.n_skip != 0:
             skip_channels = self.skip_channels
@@ -80,19 +96,25 @@ class DecoderCup(nn.Module):
         
         self.blocks = nn.ModuleList(blocks)
 
+    def init_weights(self):
+        for block in self.blocks:
+            block.reset_parameters()
+    
     def forward(self, x, features=None):
         # reshape from (B, n_patch, hidden) to (B, hidden, n_patch)
         B, n_patch, hidden = x.size()  
-        y = x.contiguous().view(B, hidden, n_patch)
-        y = self.conv_more(y)
-        
+        x.permute(0, 2, 1)
+        x = x.contiguous().view(B, (n_patch * hidden) // 512, 512)  
+        x = self.conv_more(x)
+
         for i, decoder_block in enumerate(self.blocks):
             if features is not None:
                 skip = features[i] if (i < self.n_skip) else None
             else:
                 skip = None
-            y = decoder_block(y, skip=skip)
+                
+            x = decoder_block(x, skip=skip)
             
-        return y
+        return x
     
 
