@@ -10,6 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSum
 
 from data import SabreDataModule, SabreTestModule
 from model import SabreModel
+from TransUNet.dataset import NMRData
 
 from argparse import Namespace
 from datetime import datetime
@@ -20,6 +21,19 @@ class Hyperparameters(Namespace):
         # Initialize default values
         super().__init__(
             load_model=None,
+            vis=True,
+            seq_length=512,
+            in_channels=64,
+            embedding_dim=2048,
+            ffn_embedding_dim=4096,
+            num_heads=16,
+            num_layers=12,
+            patch_size=32,
+            dropout=0.25,
+            attn_dropout=0.25,
+            decoder_channels=[256, 128, 64, 16],
+            skip_channels=[64, 32, 16, 0],
+            skip_num=3,
          
             num_epochs=300,
             lr_warmup_steps=5000,
@@ -31,8 +45,8 @@ class Hyperparameters(Namespace):
             early_stopping_patience=30,
         
             reload=1,
-            batch_size=32,
-            inference_batch_size=32,
+            batch_size=16,
+            inference_batch_size=16,
             dataset_root='./data',
             test_root='./test',
             train_size=None,
@@ -53,10 +67,9 @@ def auto_expriment(args):
     dir_name = (
         f"bs_{args.batch_size}"
         + f"_L{args.num_layers}_D{args.embedding_dim}_F{args.ffn_embedding_dim}"
-        + f"_H{args.num_heads}_rbf_{args.num_rbf}"
-        + f"_norm_{args.norm_type}"
+        + f"_H{args.num_heads}"
+        + f"_P{args.patch_size}"
         + f"_lr_{args.lr}"
-        + f"_cutoff_{args.cutoff}"
         + f"_seed_{args.seed}"
     )
 

@@ -12,8 +12,8 @@ from scipy.signal import find_peaks
 
 class NMRData:
     def __init__(self, raw, label):
-        self.raw = raw
-        self.label = label
+        self.raw = self.disassemble(raw)
+        self.label = self.disassemble(label)
         
         self.is_plot = False
         if self.is_plot is True:
@@ -31,9 +31,13 @@ class NMRData:
     def __len__(self):
         return len(self.raw)
     
+    def disassemble(self, data):
+        # 将数据分解为实部和虚部，并返回一个 tensor 列表
+        return torch.stack([data.real, data.imag], dim=1) # (batch_size, 2, seq_len)
+    
     def plot(self):
-        plt.plot(self.raw.real, label='raw data')
-        plt.plot(self.label.real, label='label data')
+        plt.plot(self.raw[0], label='raw data')
+        plt.plot(self.label[0], label='label data')
         plt.legend()
         plt.show()
   
@@ -78,7 +82,7 @@ class SABREDataset(Dataset):
             csv_datas.append(csv_data)
             
         # 生成数据
-        for i in tqdm(range(5000), desc="Generating data"):
+        for i in tqdm(range(3000), desc="Generating data"):
             for csv_data in csv_datas:
                 label_data = csv_data.clone()
                 
@@ -143,4 +147,5 @@ class SABREDataset(Dataset):
 if __name__ == '__main__':
     dataset = SABREDataset(root=r'D:\project\SABRE-Denoise\data')
     print(len(dataset))
-    print(dataset[0])
+    print(dataset[0].raw)
+    print(dataset[0].label)

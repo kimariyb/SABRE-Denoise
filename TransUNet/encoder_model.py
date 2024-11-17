@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from einops import rearrange
 
-from conv_model import ResNet
+from TransUNet.conv_model import ResNet
 
 
 class PatchEmbedding(nn.Module):
@@ -265,37 +265,3 @@ class Transformer(nn.Module):
         
         return encoded, attn_weights, features
     
-
-class TestTransformer:
-    def __init__(self, transformer):
-        self.transformer = transformer
-
-    def run_test(self):
-        x = torch.randn(1, 2, 8192)  # 随机输入
-
-        encoded, attn_weights, features = self.transformer(x)
-
-        # 打印输出的形状
-        print("Encoded shape:", encoded.shape)
-        print("Features:", features)
-
-# 测试 Transformer 类
-if __name__ == "__main__":
-    # 初始化 Transformer 参数
-    vis = True  # 根据实际需要初始化
-    seq_length = 512
-    in_channels = 64
-    embedding_dim = 2048
-    ffn_embedding_dim = 4096
-    num_heads = 16
-    num_layers = 12
-    patch_size = 32
-    dropout = 0.1
-    attn_dropout = 0.1
-    
-    # 创建 Transformer 实例
-    transformer = Transformer(vis, seq_length, in_channels, embedding_dim, ffn_embedding_dim, num_heads, num_layers, patch_size, dropout, attn_dropout)
-
-    # 运行测试
-    test_transformer = TestTransformer(transformer)
-    test_transformer.run_test()

@@ -160,53 +160,26 @@ class ResNet(nn.Module):
     def forward(self, x):
         features = []
         
-        b, c, in_size = x.size()         
+        b, c, l = x.size()         
         x = self.root(x)
         x = nn.MaxPool1d(kernel_size=3, stride=2, padding=0)(x)
-        
-        for i in range(len(self.body) - 1):
+                
+        for i in range(len(self.body)):
             x = self.body[i](x)
-            right_size = int(in_size / 4 / (i + 1))
+
+            right_size = l // (2 ** (i + 1))
             
             if x.size()[2] != right_size:
                 feat = torch.zeros((b, x.size()[1], right_size), device=x.device)
                 feat[:, :, 0:x.size()[2]] = x[:]
             else:
                 feat = x
-                
-            features.append(feat)
             
-        x = self.body[-1](x)
+            features.append(feat)
+
         
         return x, features[::-1]
 
 
-class TestResNet:
-    def __init__(self):
-        self.model = ResNet()
-
-    def test_forward(self):
-        # 创建一个随机输入张量，形状为 (batch_size, channels, length)
-        batch_size = 1
-        channels = 2
-        length = 8192  # 输入序列的长度
-        input_tensor = torch.randn(batch_size, channels, length)
-
-        print("输入张量的形状: ", input_tensor.shape)
-
-        # 执行前向传播
-        output, features = self.model(input_tensor)
-        
-        print("输出张量的形状: ", output.shape)
-        print("特征张量的形状: ", features[0].shape, features[1].shape)
-        
-        # 验证输出形状
-        assert output.shape[0] == batch_size, "输出batch大小不匹配"
-        
-
-# 使用示例
-if __name__ == "__main__":
-    test_resnet = TestResNet()
-    test_resnet.test_forward()
 
             

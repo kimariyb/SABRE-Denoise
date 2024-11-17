@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -6,6 +7,15 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 
 from TransUNet.main_model import create_model, load_model
+
+
+def calc_loss(pred, labels): 
+    # 将 pred 和 labels 从双通道数据转化为复数数据
+    pred = torch.TensorType(torch.complex64)(pred[0] + 1j * pred[1])
+    labels = torch.TensorType(torch.complex64)(labels[0] + 1j * labels[1])
+    
+    loss = nn.functional.mse_loss(torch.abs(pred), torch.abs(labels))
+    return loss
 
 
 class SabreModel(LightningModule):
@@ -46,7 +56,7 @@ class SabreModel(LightningModule):
         return [optimizer], [lr_scheduler]
     
     def forward(self, batch):
-        return self.model(batch['z'])
+        return self.model(batch.raw)
     
     def training_step(self, batch, batch_idx):
         return self._process_step(batch, "train")
@@ -57,10 +67,11 @@ class SabreModel(LightningModule):
     def _process_step(self, batch, stage):
         with torch.set_grad_enabled(stage == "train"):
             pred = self(batch)
+            
+        labels = batch.label
 
         loss = 0.0
-
-        labels = batch["labels"]
+        loss += calc_loss(pred, labels)
         
         self.losses[stage].append(loss.detach())
         

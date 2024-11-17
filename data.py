@@ -6,6 +6,9 @@ from pytorch_lightning import LightningDataModule
 from TransUNet.dataset import SABREDataset
 
 
+class SabreTestModule(LightningDataModule): ...
+
+
 class SabreDataModule(LightningDataModule):
     def __init__(self, hparams):
         super(SabreDataModule, self).__init__()
@@ -20,7 +23,7 @@ class SabreDataModule(LightningDataModule):
         self.dataset = SABREDataset(root=self.hparams["dataset_root"])
         # 分割 indices
         num_samples = len(self.dataset)
-        train_size = int(0.85 * num_samples)
+        train_size = int(0.9 * num_samples)
         
         self.idx_train = random.sample(range(num_samples), train_size)
         self.idx_val = [i for i in range(num_samples) if i not in self.idx_train]

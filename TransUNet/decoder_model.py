@@ -4,13 +4,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-class Swish(nn.Module):
-    def __init__(self):
-        super(Swish, self).__init__()
-
-    def forward(self, x):
-        return x * torch.sigmoid(x)
-
 
 class UpsamplingBilinear1d(nn.Module):
     def __init__(self, scale_factor):
@@ -55,17 +48,12 @@ class DecoderBlock(nn.Module):
     def forward(self, x, skip=None):
         x = self.up(x)
     
-        print(x.shape, skip.shape)
-
-    
         if skip is not None:
             x = torch.cat([x, skip], dim=1)
-        
-        print(x.shape)
-
+            
         x = self.conv1(x)
         x = self.conv2(x)
-        print(x.shape)
+        
         return x
     
 
@@ -75,6 +63,7 @@ class DecoderCup(nn.Module):
         embedding_dim,
         decoder_channels,
         skip_channels,
+        skip_num,
     ):
         super().__init__()
         self.head_channels = 512
@@ -89,11 +78,11 @@ class DecoderCup(nn.Module):
         self.out_channels = self.decoder_channels
         
         self.skip_channels = skip_channels
-        self.n_skip = len(self.skip_channels)
+        self.skip_num = skip_num
 
-        if self.n_skip != 0:
+        if self.skip_num != 0:
             skip_channels = self.skip_channels
-            for i in range(4-self.n_skip):  # re-select the skip channels according to n_skip
+            for i in range(4-self.skip_num):
                 skip_channels[3-i]=0
         else:
             skip_channels=[0,0,0,0]
@@ -103,7 +92,8 @@ class DecoderCup(nn.Module):
         ]
         
         self.blocks = nn.ModuleList(blocks)
-
+        
+        
     def init_weights(self):
         for block in self.blocks:
             block.reset_parameters()
@@ -114,15 +104,15 @@ class DecoderCup(nn.Module):
         x.permute(0, 2, 1)
         x = x.contiguous().view(B, (n_patch * hidden) // 512, 512)  
         x = self.conv_more(x)
-
+        
         for i, decoder_block in enumerate(self.blocks):
             if features is not None:
-                skip = features[i] if (i < self.n_skip) else None
+                skip = features[i] if (i < self.skip_num) else None
             else:
                 skip = None
                 
             x = decoder_block(x, skip=skip)
-            
+
         return x
     
 
