@@ -122,7 +122,7 @@ class SabreModel(LightningModule):
         pred_complex = pred[:, 0] + 1j * pred[:, 1]
         label_complex = label[:, 0] + 1j * label[:, 1]
 
-        loss = nn.functional.mse_loss(torch.abs(pred_complex), torch.abs(label_complex))
+        loss = nn.functional.l1_loss(torch.abs(pred_complex), torch.abs(label_complex))
         
         return loss 
     

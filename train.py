@@ -22,13 +22,13 @@ class Hyperparameters(Namespace):
         # Initialize default values
         super().__init__(
             load_model=None,
-            vis=True,
+            vis=False,
             seq_length=512,
             in_channels=64,
             embedding_dim=2048,
             ffn_embedding_dim=4096,
             num_heads=16,
-            num_layers=6,
+            num_layers=12,
             patch_size=32,
             dropout=0.8,
             attn_dropout=0.8,
@@ -37,7 +37,7 @@ class Hyperparameters(Namespace):
             skip_num=3,
          
             num_epochs=50,
-            lr_warmup_steps=5000,
+            lr_warmup_steps=10000,
             lr=1.e-04,
             lr_patience=5,
             lr_min=1.e-07,

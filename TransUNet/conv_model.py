@@ -128,11 +128,10 @@ class PreActBottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, length=4, num_layers=3):
+    def __init__(self, length=4):
         super().__init__()
 
         self.length = length
-        self.block_units = [num_layers, num_layers, num_layers]
 
         self.root = nn.Sequential(
             StdConv1d(2, self.length, kernel_size=7, stride=2, padding=3, bias=False),
@@ -140,20 +139,20 @@ class ResNet(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        self.block1 = nn.Sequential(OrderedDict(
-            [('unit1', PreActBottleneck(self.length, self.length * 4, self.length))] + 
-            [(f'unit{i:d}', PreActBottleneck(self.length * 4, self.length * 4, self.length)) for i in range(2, self.block_units[0] + 1)]
-        ))
+        self.block1 = nn.Sequential(
+            PreActBottleneck(self.length, self.length * 4, self.length),
+            PreActBottleneck(self.length * 4, self.length * 4, self.length),
+        )
 
-        self.block2 = nn.Sequential(OrderedDict(
-            [('unit1', PreActBottleneck(self.length * 4, self.length * 8, self.length * 2, stride=2))] + 
-            [(f'unit{i:d}', PreActBottleneck(self.length * 8, self.length * 8, self.length * 2)) for i in range(2, self.block_units[1] + 1)]
-        ))
+        self.block2 = nn.Sequential(
+            PreActBottleneck(self.length * 4, self.length * 8, self.length * 2, stride=2),
+            PreActBottleneck(self.length * 8, self.length * 8, self.length * 2),
+        )
 
-        self.block3 = nn.Sequential(OrderedDict(
-            [('unit1', PreActBottleneck(self.length * 8, self.length * 16, self.length * 4, stride=2))] + 
-            [(f'unit{i:d}', PreActBottleneck(self.length * 16, self.length * 16, self.length * 4)) for i in range(2, self.block_units[2] + 1)]
-        ))
+        self.block3 = nn.Sequential(
+            PreActBottleneck(self.length * 8, self.length * 16, self.length * 4, stride=2),
+            PreActBottleneck(self.length * 16, self.length * 16, self.length * 4)
+        )
         
         self.body = nn.ModuleList([self.block1, self.block2, self.block3])
 

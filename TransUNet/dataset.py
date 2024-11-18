@@ -74,8 +74,8 @@ class SABREDataset(Dataset):
                 torch.tensor(csv_data[:, 0], dtype=torch.float32),
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
-            csv_data = self.split(csv_data, height=0.008)
-            csv_data = self.zero(csv_data, threshold=0.01)
+            csv_data = self._split(csv_data, height=0.008)
+            csv_data = self._zero(csv_data)
             csv_datas.append(csv_data)
             
         # 生成数据
@@ -84,48 +84,52 @@ class SABREDataset(Dataset):
                 label_data = csv_data.clone()
                 
                 # 随机添加高斯噪声
-                noise_level = np.random.choice(['high','mid', 'low'])
-                raw_data = self.gauss_noise(csv_data.clone(), noise_level)
+                noise_level = np.random.uniform(0.001, 0.01)
+                raw_data = self._noise(csv_data.clone(), noise_level)
                 
                 data = NMRData(raw=raw_data, label=label_data)
                 data_list.append(data)
    
         torch.save(data_list, self.processed_paths)
         
-    def zero(self, data, threshold=0.01):
+    def _zero(self, data, threshold=0.001):
         # 给数据中的小于阈值的部分置零
         data.real = torch.where(torch.abs(data.real) < threshold, torch.zeros_like(data.real), data.real)
         data.imag = torch.where(torch.abs(data.imag) < threshold, torch.zeros_like(data.imag), data.imag)
         
         return data
         
-    def split(self, data, height=0.008):
-        data.real = data.real / torch.max(torch.abs(data.real))
-        data.imag = data.imag / torch.max(torch.abs(data.imag))
-        
+    def _split(self, data, height=0.008):
+        # 首先对数据进行归一化
+        data = self.normalize(data)
+        # 找到峰值，并将数据分割为 8192 个数据点
         peaks, _ = find_peaks(torch.abs(data), height=height)
         start_index = peaks[-1] - 8192
         end_index = peaks[-1]
+        
         data = data[start_index-100:end_index-100]
+        # 最后再归一化
+        data = self.normalize(data)
 
         return data      
 
-    def gauss_noise(self, data, noise_level):
-        
-        if noise_level == 'high':
-            scale = np.random.uniform(0.25, 0.5)   # 高噪声水平
-        elif noise_level == 'mid':
-            scale = np.random.uniform(0.05, 0.15)   # 中等噪声水平
-        elif noise_level == 'low':
-            scale = np.random.uniform(0.01, 0.05)  # 低噪声水平
-        else:
-            raise ValueError("Unknown noise level: Choose 'high', 'mid', or 'low'")
-        
-        # 给复数数据加入随机的高斯噪声
-        data.real = data.real + torch.randn(data.shape) * scale
-        data.imag = data.imag + torch.randn(data.shape) * scale
-
+    def _noise(self, data, noise_level):
+        # 首先将 data 经过 IFFT 变换得到时域信号
+        fid = torch.fft.ifft(data, dim=-1)
+        # 生成高斯噪声
+        noise = np.random.normal(loc=0, scale=np.sqrt(2)/2, size=(len(fid),2)).view(np.complex64)
+        noise = noise[:, 0]
+        # 将噪声加到时域信号中
+        fid = fid + noise_level * torch.tensor(noise)
+        # 最后再进行 FFT 变换得到频域信号
+        data = torch.fft.fft(fid, dim=-1)        
         # 归一化到 [-1, 1]
+        data = self.normalize(data)
+        
+        return data
+    
+    def normalize(self, data):
+        # 对数据进行归一化
         data.real = data.real / torch.max(torch.abs(data.real))
         data.imag = data.imag / torch.max(torch.abs(data.imag))
         
@@ -169,7 +173,7 @@ class SABRETestDataset(SABREDataset):
                 torch.tensor(csv_data[:, 0], dtype=torch.float32),
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
-            csv_data = self.split(csv_data, height=0.7)
+            csv_data = self._split(csv_data, height=0.8)
             
             data = NMRData(raw=csv_data, label=csv_data)
             data_list.append(data)
