@@ -99,7 +99,6 @@ class SABREDataset(Dataset):
         
         return data
         
-        
     def split(self, data, height=0.008):
         data.real = data.real / torch.max(torch.abs(data.real))
         data.imag = data.imag / torch.max(torch.abs(data.imag))
@@ -181,8 +180,6 @@ class SABRETestDataset(SABREDataset):
 if __name__ == '__main__':
     dataset = SABREDataset(root=r'/home/kimariyb/project/SABRE-Denoise/data/')
     print(len(dataset))
-    print(dataset[0].raw.shape)
-    print(dataset[0].label.shape)
+    dataset[0].plot()
     
-    testdataset = SABRETestDataset(root=r'/home/kimariyb/project/SABRE-Denoise/test/')
     

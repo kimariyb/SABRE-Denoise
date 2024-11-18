@@ -103,7 +103,7 @@ class SabreModel(LightningModule):
             "train": [], "val": [], 
         }
         
-    def _calc_loss(pred, label):
+    def _calc_loss(self, pred, label):
         """
         Calculate the loss between the predicted and the label.
         

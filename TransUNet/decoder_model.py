@@ -4,7 +4,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-
 class UpsamplingBilinear1d(nn.Module):
     def __init__(self, scale_factor):
         super(UpsamplingBilinear1d, self).__init__()
