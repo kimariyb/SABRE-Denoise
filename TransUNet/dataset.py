@@ -119,7 +119,6 @@ class SABREDataset(Dataset):
         fid = fid + noise_level * noise
         # 最后再进行 FFT 变换得到频域信号
         noised_data = torch.fft.fft(fid)
-        print(noised_data)
         # 归一化到 [-1, 1]
         noised_data = self.normalize(noised_data)
         
