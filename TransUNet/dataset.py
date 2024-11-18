@@ -32,9 +32,13 @@ class NMRData:
         return torch.stack([data.real, data.imag], dim=-2) # (2, seq_len)
     
     def plot(self):
-        plt.plot(self.raw[0], label='raw data')
-        plt.plot(self.label[0], label='label data')
-        plt.legend()
+        plt.figure(figsize=(12, 8))
+        plt.subplot(2, 1, 1)
+        plt.plot(self.raw.numpy()[0])
+        plt.title("Raw")
+        plt.subplot(2, 1, 2)
+        plt.plot(self.label.numpy()[0])
+        plt.title("Label")
         plt.show()
   
   
@@ -75,7 +79,6 @@ class SABREDataset(Dataset):
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
             csv_data = self._split(csv_data, height=0.008)
-            csv_data = self._zero(csv_data)
             csv_datas.append(csv_data)
             
         # 生成数据
@@ -91,13 +94,6 @@ class SABREDataset(Dataset):
                 data_list.append(data)
    
         torch.save(data_list, self.processed_paths)
-        
-    def _zero(self, data, threshold=0.001):
-        # 给数据中的小于阈值的部分置零
-        data.real = torch.where(torch.abs(data.real) < threshold, torch.zeros_like(data.real), data.real)
-        data.imag = torch.where(torch.abs(data.imag) < threshold, torch.zeros_like(data.imag), data.imag)
-        
-        return data
         
     def _split(self, data, height=0.008):
         # 首先对数据进行归一化
@@ -115,18 +111,19 @@ class SABREDataset(Dataset):
 
     def _noise(self, data, noise_level):
         # 首先将 data 经过 IFFT 变换得到时域信号
-        fid = torch.fft.ifft(data, dim=-1)
+        fid = torch.fft.ifft(data)
         # 生成高斯噪声
-        noise = np.random.normal(loc=0, scale=np.sqrt(2)/2, size=(len(fid),2)).view(np.complex64)
+        noise = torch.normal(mean=0, std=torch.sqrt(torch.tensor(2.0))/2, size=(len(fid),2)).to(torch.complex64)
         noise = noise[:, 0]
         # 将噪声加到时域信号中
-        fid = fid + noise_level * torch.tensor(noise)
+        fid = fid + noise_level * noise
         # 最后再进行 FFT 变换得到频域信号
-        data = torch.fft.fft(fid, dim=-1)        
+        noised_data = torch.fft.fft(fid)
+        print(noised_data)
         # 归一化到 [-1, 1]
-        data = self.normalize(data)
+        noised_data = self.normalize(noised_data)
         
-        return data
+        return noised_data
     
     def normalize(self, data):
         # 对数据进行归一化
@@ -180,10 +177,6 @@ class SABRETestDataset(SABREDataset):
             
         torch.save(data_list, self.processed_paths)
         
-    
-if __name__ == '__main__':
-    dataset = SABREDataset(root=r'/home/kimariyb/project/SABRE-Denoise/data/')
-    print(len(dataset))
-    dataset[0].plot()
+
     
     

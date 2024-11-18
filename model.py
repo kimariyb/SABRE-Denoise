@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 
 from TransUNet.main_model import create_model
-
+from utils.losses import rmse_loss
 
 class SabreModel(LightningModule):
     def __init__(self, hparams) -> None:
@@ -122,7 +122,7 @@ class SabreModel(LightningModule):
         pred_complex = pred[:, 0] + 1j * pred[:, 1]
         label_complex = label[:, 0] + 1j * label[:, 1]
 
-        loss = nn.functional.l1_loss(torch.abs(pred_complex), torch.abs(label_complex))
+        loss = rmse_loss(torch.abs(pred_complex), torch.abs(label_complex))
         
         return loss 
     
