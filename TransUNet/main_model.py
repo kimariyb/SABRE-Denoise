@@ -1,9 +1,5 @@
-import re
-
 import torch
 import torch.nn as nn
-
-from pytorch_lightning.utilities import rank_zero_warn
 
 from TransUNet.encoder_model import Transformer
 from TransUNet.decoder_model import DecoderCup, UpsamplingBilinear1d

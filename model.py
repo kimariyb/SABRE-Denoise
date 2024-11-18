@@ -131,19 +131,18 @@ class SabreModel(LightningModule):
         # 将 tensor 转换为 numpy 数组
         pred = pred.detach().cpu().numpy()
         label = label.detach().cpu().numpy()
-        print(pred.shape)
-        print(label.shape)
         
         # 生成 x 轴坐标和 y 轴坐标
         x = range(pred.shape[2])
         pred_y = pred[0, 0, :].reshape(-1)
         label_y = label[0, 0, :].reshape(-1)
         
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
+        # 绘制上下两个谱图
+        plt.figure(figsize=(12, 8))
+        plt.subplot(2, 1, 1)
         plt.plot(x, pred_y, color='r')
         plt.title("Predicted")
-        plt.subplot(1, 2, 2)
+        plt.subplot(2, 1, 2)
         plt.plot(x, label_y, color='b')
         plt.title("Label")
         plt.show()

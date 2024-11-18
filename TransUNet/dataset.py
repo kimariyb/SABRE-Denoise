@@ -75,6 +75,7 @@ class SABREDataset(Dataset):
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
             csv_data = self.split(csv_data, height=0.008)
+            csv_data = self.zero(csv_data, threshold=0.01)
             csv_datas.append(csv_data)
             
         # 生成数据
@@ -90,6 +91,13 @@ class SABREDataset(Dataset):
                 data_list.append(data)
    
         torch.save(data_list, self.processed_paths)
+        
+    def zero(self, data, threshold=0.01):
+        # 给数据中的小于阈值的部分置零
+        data.real = torch.where(torch.abs(data.real) < threshold, torch.zeros_like(data.real), data.real)
+        data.imag = torch.where(torch.abs(data.imag) < threshold, torch.zeros_like(data.imag), data.imag)
+        
+        return data
         
         
     def split(self, data, height=0.008):
@@ -162,7 +170,7 @@ class SABRETestDataset(SABREDataset):
                 torch.tensor(csv_data[:, 0], dtype=torch.float32),
                 torch.tensor(csv_data[:, 1], dtype=torch.float32)
             )
-            csv_data = self.split(csv_data, height=0.5)
+            csv_data = self.split(csv_data, height=0.7)
             
             data = NMRData(raw=csv_data, label=csv_data)
             data_list.append(data)

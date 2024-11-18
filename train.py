@@ -10,6 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSum
 
 from data import SabreDataModule, SabreTestModule
 from model import SabreModel
+
 from TransUNet.dataset import NMRData
 
 from argparse import Namespace
@@ -25,28 +26,28 @@ class Hyperparameters(Namespace):
             seq_length=512,
             in_channels=64,
             embedding_dim=2048,
-            ffn_embedding_dim=4096,
+            ffn_embedding_dim=1024,
             num_heads=16,
-            num_layers=12,
+            num_layers=9,
             patch_size=32,
-            dropout=0.25,
-            attn_dropout=0.25,
+            dropout=0.8,
+            attn_dropout=0.8,
             decoder_channels=[256, 128, 64, 16],
             skip_channels=[64, 32, 16, 0],
             skip_num=3,
          
-            num_epochs=300,
-            lr_warmup_steps=5000,
-            lr=2.e-4,
+            num_epochs=100,
+            lr_warmup_steps=10000,
+            lr=1.e-04,
             lr_patience=5,
             lr_min=1.e-07,
             lr_factor=0.8,
-            weight_decay=5e-04,
-            early_stopping_patience=30,
+            weight_decay=1.e-03,
+            early_stopping_patience=15,
         
             reload=1,
-            batch_size=16,
-            inference_batch_size=16,
+            batch_size=32,
+            inference_batch_size=32,
             dataset_root='./data',
             test_root='./test',
             train_size=None,
@@ -59,11 +60,11 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="test"
+            task="train"
         )
 
 
-def auto_expriment(args):
+def auto_start(args):
     dir_name = (
         f"bs_{args.batch_size}"
         + f"_L{args.num_layers}_D{args.embedding_dim}_F{args.ffn_embedding_dim}"
@@ -108,7 +109,7 @@ def main():
 
     # Set seed
     pl.seed_everything(args.seed, workers=True)
-    args = auto_expriment(args)
+    args = auto_start(args)
     
     # Initialize model
     model = SabreModel(args).to(device)
@@ -185,12 +186,8 @@ def main():
         
         # 读取测试模型
         ckpt = torch.load(args.load_model, map_location="cpu")
-        model.model.load_state_dict(
-            {
-                re.sub(r"^model\.", "", k): v
-                for k, v in ckpt["state_dict"].items()
-            }
-        )
+        state_dict = {re.sub(r"^model\.", "", k): v for k, v in ckpt["state_dict"].items()}
+        model.model.load_state_dict(state_dict)
 
         # 开始测试
         test_trainer.test(model=model, datamodule=test_data)
