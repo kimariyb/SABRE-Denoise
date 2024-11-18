@@ -15,10 +15,6 @@ class NMRData:
         self.raw = self.disassemble(raw)
         self.label = self.disassemble(label)
         
-        self.is_plot = False
-        if self.is_plot is True:
-            self.plot()
-        
         # raw 和 label 的尺寸必须相同
         assert self.raw.shape == self.label.shape, "raw and label must have the same shape"
     
@@ -33,7 +29,7 @@ class NMRData:
     
     def disassemble(self, data):
         # 将数据分解为实部和虚部，并返回一个 tensor 列表
-        return torch.stack([data.real, data.imag], dim=1) # (batch_size, 2, seq_len)
+        return torch.stack([data.real, data.imag], dim=-2) # (2, seq_len)
     
     def plot(self):
         plt.plot(self.raw[0], label='raw data')
@@ -70,7 +66,7 @@ class SABREDataset(Dataset):
         
         csv_datas = []
         
-        # 处理数据，加入噪声
+        # 处理数据
         for csv in csv_list:
             csv_path = os.path.join(csv_dir, csv)
             csv_data = pd.read_csv(csv_path, header=None, delim_whitespace=True).iloc[:, 1:].values
@@ -82,7 +78,7 @@ class SABREDataset(Dataset):
             csv_datas.append(csv_data)
             
         # 生成数据
-        for i in tqdm(range(3000), desc="Generating data"):
+        for i in tqdm(range(5000), desc="Generating data"):
             for csv_data in csv_datas:
                 label_data = csv_data.clone()
                 
@@ -144,8 +140,41 @@ class SABREDataset(Dataset):
     def processed_paths(self):
         return os.path.join(self.processed_dir, self.processed_file_names)
     
+    
+class SABRETestDataset(SABREDataset):
+    def __init__(self, root):
+        super().__init__(root)
+        
+    def process(self):
+        data_list = []
+        
+        # 读取原始数据
+        csv_dir = os.path.join(self.raw_dir)
+        csv_list = os.listdir(csv_dir)
+        csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
+                
+        # 处理数据
+        for csv in tqdm(csv_list, desc="Generating data"):
+            csv_path = os.path.join(csv_dir, csv)
+            csv_data = pd.read_csv(csv_path, header=None, delim_whitespace=True).iloc[:, 1:].values
+            
+            csv_data = torch.complex(
+                torch.tensor(csv_data[:, 0], dtype=torch.float32),
+                torch.tensor(csv_data[:, 1], dtype=torch.float32)
+            )
+            csv_data = self.split(csv_data, height=0.5)
+            
+            data = NMRData(raw=csv_data, label=csv_data)
+            data_list.append(data)
+            
+        torch.save(data_list, self.processed_paths)
+        
+    
 if __name__ == '__main__':
-    dataset = SABREDataset(root=r'D:\project\SABRE-Denoise\data')
+    dataset = SABREDataset(root=r'/home/kimariyb/project/SABRE-Denoise/data/')
     print(len(dataset))
-    print(dataset[0].raw)
-    print(dataset[0].label)
+    print(dataset[0].raw.shape)
+    print(dataset[0].label.shape)
+    
+    testdataset = SABRETestDataset(root=r'/home/kimariyb/project/SABRE-Denoise/test/')
+    

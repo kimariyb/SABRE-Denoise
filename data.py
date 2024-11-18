@@ -1,12 +1,46 @@
 import random
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS
+import torch
 
 from torch.utils.data import Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 
-from TransUNet.dataset import SABREDataset
+from TransUNet.dataset import SABREDataset, SABRETestDataset
 
 
-class SabreTestModule(LightningDataModule): ...
+class SabreDataCollator:
+    def __call__(self, features):
+        batch = dict()
+        
+        batch["labels"] = torch.stack(
+            [feat.label for feat in features]
+        )
+        
+        batch["raws"] = torch.stack(
+            [feat.raw for feat in features]
+        )
+        
+        return batch  
+
+
+class SabreTestModule(LightningDataModule): 
+    def __init__(self, root):
+        super(SabreTestModule, self).__init__()
+        self.dataset = SABRETestDataset(root=root)
+        self.collator = SabreDataCollator()
+        
+    def test_dataloader(self):
+        dataloader = DataLoader(
+            dataset=self.dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            pin_memory=True,
+            drop_last=False,
+            collate_fn=self.collator,
+        )
+        
+        return dataloader
 
 
 class SabreDataModule(LightningDataModule):
@@ -35,7 +69,6 @@ class SabreDataModule(LightningDataModule):
         self.train_dataset = Subset(self.dataset, self.idx_train)
         self.val_dataset = Subset(self.dataset, self.idx_val)
         
-        
     def train_dataloader(self):
         return self._get_dataloader(self.train_dataset, "train")
 
@@ -53,6 +86,8 @@ class SabreDataModule(LightningDataModule):
         elif stage == "val":
             batch_size = self.hparams["inference_batch_size"]
             shuffle = False
+            
+        collate_fn = SabreDataCollator()
 
         dataloader = DataLoader(
             dataset=dataset,
@@ -61,6 +96,7 @@ class SabreDataModule(LightningDataModule):
             num_workers=self.hparams["num_workers"],
             pin_memory=True,
             drop_last=False,
+            collate_fn=collate_fn
         )
         
         if store_dataloader:

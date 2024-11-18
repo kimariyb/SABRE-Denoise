@@ -59,7 +59,7 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="train"
+            task="test"
         )
 
 
@@ -73,12 +73,9 @@ def auto_expriment(args):
         + f"_seed_{args.seed}"
     )
 
-    if args.load_model is None:
-        
+    if args.load_model is None:    
         args.log_dir = os.path.join(args.log_dir, dir_name)
-        
         if os.path.exists(args.log_dir):
-            
             if os.path.exists(
                 os.path.join(args.log_dir, "checkpoints", "last.ckpt")
             ):
@@ -113,10 +110,6 @@ def main():
     pl.seed_everything(args.seed, workers=True)
     args = auto_expriment(args)
     
-    # Initialize data module
-    data = SabreDataModule(args)
-    data.prepare_dataset()
-
     # Initialize model
     model = SabreModel(args).to(device)
     
@@ -124,6 +117,10 @@ def main():
     csv_logger = CSVLogger(args.log_dir, name="metrics", version="")
     
     if args.task == "train":
+        # Initialize data module
+        data = SabreDataModule(args)
+        data.prepare_dataset()
+
         # Initialize callbacks
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(args.log_dir, "checkpoints"),
@@ -152,7 +149,7 @@ def main():
             max_epochs=args.num_epochs,
             num_nodes=args.num_nodes,
             accelerator=args.accelerator,
-            deterministic=True,
+            deterministic=False,
             default_root_dir=args.log_dir,
             callbacks=[early_stopping, checkpoint_callback, ModelSummary(max_depth=1)],
             logger=[tb_logger, csv_logger],
@@ -184,7 +181,8 @@ def main():
         )
         
         # 创建测试用例
-        test_data = SabreTestModule(root=args.test_root, max_nodes=args.max_nodes)
+        test_data = SabreTestModule(root=args.test_root)
+        
         # 读取测试模型
         ckpt = torch.load(args.load_model, map_location="cpu")
         model.model.load_state_dict(
@@ -193,6 +191,7 @@ def main():
                 for k, v in ckpt["state_dict"].items()
             }
         )
+
         # 开始测试
         test_trainer.test(model=model, datamodule=test_data)
 

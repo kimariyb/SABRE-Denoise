@@ -127,19 +127,6 @@ def create_model(args):
     return model
 
 
-def load_model(filepath, args=None, device="cpu", **kwargs):
-    ckpt = torch.load(filepath, map_location="cpu")
 
-    if args is None:
-        args = ckpt["hyper_parameters"]
 
-    for key, value in kwargs.items():
-        if not key in args:
-            rank_zero_warn(f"Unknown hyperparameter: {key}={value}")
-        args[key] = value
 
-    model = create_model(args)
-    state_dict = {re.sub(r"^model\.", "", k): v for k, v in ckpt["state_dict"].items()}
-    model.load_state_dict(state_dict)
-    
-    return model.to(device)
