@@ -61,7 +61,7 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="test"
+            task="train"
         )
 
 
