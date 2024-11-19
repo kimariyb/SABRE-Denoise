@@ -5,14 +5,6 @@ from TransUNet.encoder_model import Transformer
 from TransUNet.decoder_model import DecoderCup, UpsamplingBilinear1d
 
 
-class Swish(nn.Module):
-    def __init__(self):
-        super(Swish, self).__init__()
-
-    def forward(self, x):
-        return x * torch.sigmoid(x)
-    
-
 class SpectralDeNoiser(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, upsampling=1):
         super(SpectralDeNoiser, self).__init__()        
@@ -21,7 +13,7 @@ class SpectralDeNoiser(nn.Module):
         # 定义上采样层
         self.upsampling = UpsamplingBilinear1d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
         # 定义激活函数
-        self.swish = Swish()
+        self.relu = nn.LeakyReLU(negative_slope=0.1)
 
         # 初始化权重
         self.init_weights()
@@ -30,18 +22,18 @@ class SpectralDeNoiser(nn.Module):
         # 前向传播
         x = self.conv1d(x)
         x = self.upsampling(x)
-        x = self.swish(x)
+        x = self.relu(x)
         
         return x
         
     def init_weights(self):
-        nn.init.xavier_uniform_(self.conv1d.weight)
+        nn.init.kaiming_normal_(self.conv1d.weight, mode='fan_out', nonlinearity='leaky_relu')
         nn.init.zeros_(self.conv1d.bias)
-        if hasattr(self.upsampling, "weight"):
-            nn.init.xavier_uniform_(self.upsampling.weight)
-        if hasattr(self.upsampling, "bias"):
-            nn.init.zeros_(self.upsampling.bias)
-
+        nn.init.kaiming_normal_(self.upsampling.weight, mode='fan_out', nonlinearity='leaky_relu')
+        nn.init.zeros_(self.upsampling.bias)
+        nn.init.kaiming_normal_(self.relu.weight, mode='fan_out', nonlinearity='leaky_relu')
+        nn.init.zeros_(self.relu.bias)
+        
 
 class SabreNet(nn.Module):
     def __init__(

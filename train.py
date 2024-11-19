@@ -26,7 +26,7 @@ class Hyperparameters(Namespace):
             seq_length=512,
             in_channels=64,
             embedding_dim=2048,
-            ffn_embedding_dim=2048,
+            ffn_embedding_dim=1024,
             num_heads=16,
             num_layers=12,
             patch_size=32,
@@ -61,7 +61,7 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="train"
+            task="test"
         )
 
 
