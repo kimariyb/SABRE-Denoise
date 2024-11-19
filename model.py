@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 
 from TransUNet.main_model import create_model
-from utils.losses import nmse_loss
+from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss
 
 
 class SabreModel(LightningModule):
@@ -67,7 +67,7 @@ class SabreModel(LightningModule):
         label = batch['labels']
 
         loss = 0.0
-        loss = self._calc_loss(pred, label)
+        loss = self._calc_loss(pred, label, weight=0.8)
         
         self.losses[stage].append(loss.detach())
         
@@ -104,7 +104,7 @@ class SabreModel(LightningModule):
             "train": [], "val": [], 
         }
         
-    def _calc_loss(self, pred, label):
+    def _calc_loss(self, pred, label, weight=0.5):
         """
         Calculate the loss between the predicted and the label.
         
@@ -120,10 +120,10 @@ class SabreModel(LightningModule):
         loss : torch.Tensor
             The loss between the predicted and the label.
         """
-        real_loss = nmse_loss(pred[:, 0, :], label[:, 0, :])  # 获取所有批次第一个通道的实部
-        imag_loss = nmse_loss(pred[:, 1, :], label[:, 1, :])  # 获取所有批次第二个通道的虚部
+        real_loss = rmse_loss(pred[:, 0, :], label[:, 0, :])  # 获取所有批次第一个通道的实部
+        imag_loss = rmse_loss(pred[:, 1, :], label[:, 1, :])  # 获取所有批次第二个通道的虚部
                 
-        loss = real_loss + imag_loss
+        loss = (weight * real_loss) + (imag_loss * (1 - weight))
         
         return loss 
     
