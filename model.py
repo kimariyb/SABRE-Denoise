@@ -94,7 +94,7 @@ class SabreModel(LightningModule):
                 "val_loss": torch.stack(self.losses["val"]).mean(),
             }
             
-            self.log_dict(result_dict, sync_dist=True, on_step=False, on_epoch=True)
+            self.log_dict(result_dict, sync_dist=True, on_step=False, on_epoch=True, prog_bar=True)
             
         self._reset_losses_dict()  
         
