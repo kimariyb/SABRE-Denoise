@@ -1,5 +1,5 @@
 from TransUNet.dataset import SABREDataset
 
-dataset = SABREDataset(root=r'./data/', nums=1)
+dataset = SABREDataset(root=r'./data/')
 
 dataset[1].plot()

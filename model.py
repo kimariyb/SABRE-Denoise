@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
@@ -67,7 +66,7 @@ class SabreModel(LightningModule):
         label = batch['labels']
 
         loss = 0.0
-        loss = self._calc_loss(pred, label, weight=0.8)
+        loss = self._calc_loss(pred, label)
         
         self.losses[stage].append(loss.detach())
         
@@ -104,7 +103,7 @@ class SabreModel(LightningModule):
             "train": [], "val": [], 
         }
         
-    def _calc_loss(self, pred, label, weight=0.5):
+    def _calc_loss(self, pred, label):
         """
         Calculate the loss between the predicted and the label.
         
@@ -120,10 +119,16 @@ class SabreModel(LightningModule):
         loss : torch.Tensor
             The loss between the predicted and the label.
         """
-        real_loss = rmse_loss(pred[:, 0, :], label[:, 0, :])  # 获取所有批次第一个通道的实部
-        imag_loss = rmse_loss(pred[:, 1, :], label[:, 1, :])  # 获取所有批次第二个通道的虚部
-                
-        loss = (weight * real_loss) + (imag_loss * (1 - weight))
+        if self.hparams.loss_type == "rmse":
+            loss = rmse_loss(pred[:, 0, :], label[:, 0, :])
+        elif self.hparams.loss_type == "nmse":
+            loss = nmse_loss(pred[:, 0, :], label[:, 0, :])
+        elif self.hparams.loss_type == "mse":
+            loss = mse_loss(pred[:, 0, :], label[:, 0, :])
+        elif self.hparams.loss_type == "mae":
+            loss = mae_loss(pred[:, 0, :], label[:, 0, :])
+        else:
+            raise ValueError("Invalid loss function.")
         
         return loss 
     

@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from collections import OrderedDict
-
 
 # 用于实现标准卷积层的类
 class StdConv1d(nn.Conv1d):
