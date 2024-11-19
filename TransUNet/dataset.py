@@ -43,8 +43,9 @@ class NMRData:
   
   
 class SABREDataset(Dataset):
-    def __init__(self, root):
-        self.root = root    
+    def __init__(self, root, nums=5000):
+        self.root = root   
+        self.nums = nums
         self.data = None
         
         if not os.path.exists(self.processed_paths):
@@ -82,13 +83,13 @@ class SABREDataset(Dataset):
             csv_datas.append(csv_data)
             
         # 生成数据
-        for i in tqdm(range(5000), desc="Generating data"):
+        for i in tqdm(range(self.nums), desc="Generating data"):
             for csv_data in csv_datas:
                 label_data = csv_data.clone()
                 
                 # 随机添加高斯噪声
-                noise_level = np.random.uniform(0.001, 0.01)
-                raw_data = self._noise(csv_data.clone(), noise_level)
+                noise_level = np.random.uniform(0.001, 0.008)
+                raw_data = self._noise(csv_data.clone(), 0.001)
                 
                 data = NMRData(raw=raw_data, label=label_data)
                 data_list.append(data)

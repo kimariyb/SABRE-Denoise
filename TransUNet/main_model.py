@@ -32,9 +32,6 @@ class SpectralDeNoiser(nn.Module):
         x = self.upsampling(x)
         x = self.swish(x)
         
-        # 将小于 0.0001 的值置为 0
-        x = torch.where(x < 0.0001, torch.zeros_like(x), x)
-        
         return x
         
     def init_weights(self):

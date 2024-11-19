@@ -28,7 +28,7 @@ class Hyperparameters(Namespace):
             embedding_dim=2048,
             ffn_embedding_dim=4096,
             num_heads=16,
-            num_layers=12,
+            num_layers=9,
             patch_size=32,
             dropout=0.8,
             attn_dropout=0.8,
@@ -38,7 +38,7 @@ class Hyperparameters(Namespace):
          
             num_epochs=50,
             lr_warmup_steps=10000,
-            lr=1.e-04,
+            lr=2.e-04,
             lr_patience=5,
             lr_min=1.e-07,
             lr_factor=0.8,
@@ -56,7 +56,7 @@ class Hyperparameters(Namespace):
           
             num_nodes=1,
             precision=32,
-            log_dir="./logs",
+            log_dir="./log",
             seed=42,
             accelerator="gpu",
             save_interval=1,

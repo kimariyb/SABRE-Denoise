@@ -8,7 +8,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 
 from TransUNet.main_model import create_model
-from utils.losses import rmse_loss
+from utils.losses import nmse_loss
+
 
 class SabreModel(LightningModule):
     def __init__(self, hparams) -> None:
@@ -94,7 +95,7 @@ class SabreModel(LightningModule):
                 "val_loss": torch.stack(self.losses["val"]).mean(),
             }
             
-            self.log_dict(result_dict, sync_dist=True)
+            self.log_dict(result_dict, sync_dist=True, on_step=False, on_epoch=True)
             
         self._reset_losses_dict()  
         
@@ -119,13 +120,12 @@ class SabreModel(LightningModule):
         loss : torch.Tensor
             The loss between the predicted and the label.
         """
-        pred_complex = pred[:, 0] + 1j * pred[:, 1]
-        label_complex = label[:, 0] + 1j * label[:, 1]
-
-        loss = rmse_loss(torch.abs(pred_complex), torch.abs(label_complex))
+        real_loss = nmse_loss(pred[:, 0, :], label[:, 0, :])  # 获取所有批次第一个通道的实部
+        imag_loss = nmse_loss(pred[:, 1, :], label[:, 1, :])  # 获取所有批次第二个通道的虚部
+                
+        loss = real_loss + imag_loss
         
         return loss 
-    
     
     def _plot_spectra(self, pred, label):
         # 将 tensor 转换为 numpy 数组
@@ -136,6 +136,9 @@ class SabreModel(LightningModule):
         x = range(pred.shape[2])
         pred_y = pred[0, 0, :].reshape(-1)
         label_y = label[0, 0, :].reshape(-1)
+        
+        # 将 pred_y 中小于 0.001 的值置为 0
+        pred_y[pred_y < 0.05] = 0.0
         
         # 绘制上下两个谱图
         plt.figure(figsize=(12, 8))
