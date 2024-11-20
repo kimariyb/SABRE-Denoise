@@ -61,7 +61,7 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="train"
+            task="test"
         )
 
 
@@ -127,7 +127,7 @@ def main():
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(args.log_dir, "checkpoints"),
             monitor="val_loss",
-            save_top_k=15,
+            save_top_k=10,
             save_last=True,
             every_n_epochs=args.save_interval,
             filename="{epoch}-{val_loss:.4f}",
