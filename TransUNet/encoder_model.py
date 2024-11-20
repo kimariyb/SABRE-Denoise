@@ -74,15 +74,15 @@ class MultiHeadAttention(nn.Module):
         self.attn_dropout = nn.Dropout(attn_dropout)
         self.proj_dropout = nn.Dropout(attn_dropout)
 
-        self.softmax = nn.Softmax(dim=-1)
+        self.act = nn.LeakyReLU(negative_slope=0.1, inplace=True)
         
         self.reset_parameters()
     
     def reset_parameters(self):
-        nn.init.xavier_uniform_(self.query.weight)
-        nn.init.xavier_uniform_(self.key.weight)
-        nn.init.xavier_uniform_(self.value.weight)
-        nn.init.xavier_uniform_(self.out.weight)
+        nn.init.kaiming_normal_(self.query.weight, mode="fan_in", nonlinearity="leaky_relu")
+        nn.init.kaiming_normal_(self.key.weight, mode="fan_in", nonlinearity="leaky_relu")
+        nn.init.kaiming_normal_(self.value.weight, mode="fan_in", nonlinearity="leaky_relu")
+        nn.init.kaiming_normal_(self.out.weight, mode="fan_in", nonlinearity="leaky_relu")
         nn.init.normal_(self.query.bias, std=1e-6)
         nn.init.normal_(self.key.bias, std=1e-6)
         nn.init.normal_(self.value.bias, std=1e-6)
@@ -102,7 +102,7 @@ class MultiHeadAttention(nn.Module):
 
         attention_scores = torch.matmul(q, k.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.head_dim)
-        attention_probs = self.softmax(attention_scores)
+        attention_probs = self.act(attention_scores)
         weights = attention_probs if self.vis else None
         attention_probs = self.attn_dropout(attention_probs)
 

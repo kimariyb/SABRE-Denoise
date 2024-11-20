@@ -92,17 +92,12 @@ class PreActBottleneck(nn.Module):
             
     def init_weights(self):
         # 初始化卷积层的权重和偏置
-        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_in', nonlinearity='leaky_relu')
-        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_in', nonlinearity='leaky_relu')
-        nn.init.kaiming_normal_(self.conv3.weight, mode='fan_in', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_out', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.conv3.weight, mode='fan_out', nonlinearity='leaky_relu')
         if hasattr(self, 'downsample'):
-            nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_in', nonlinearity='leaky_relu')
+            nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_out', nonlinearity='leaky_relu')
 
-        nn.init.normal_(self.conv1.bias, std=1e-6)
-        nn.init.normal_(self.conv2.bias, std=1e-6)
-        nn.init.normal_(self.conv3.bias, std=1e-6)
-        if hasattr(self, 'downsample'):
-            nn.init.normal_(self.downsample[1].bias, std=1e-6)
 
     def forward(self, x):
         # Residual branch

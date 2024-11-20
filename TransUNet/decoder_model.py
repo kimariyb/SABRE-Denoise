@@ -41,9 +41,6 @@ class DecoderBlock(nn.Module):
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
                 nn.init.normal_(m.bias, std=1e-6)
-            elif isinstance(m, nn.BatchNorm1d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
-                nn.init.normal_(m.bias, std=1e-6)
 
     def forward(self, x, skip=None):
         x = self.up(x)
