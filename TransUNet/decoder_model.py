@@ -23,12 +23,12 @@ class DecoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv1d(in_channels + skip_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(negative_slope=0.1, inplace=True),
             nn.BatchNorm1d(out_channels),
         )
         self.conv2 = nn.Sequential(
             nn.Conv1d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(negative_slope=0.1, inplace=True),
             nn.BatchNorm1d(out_channels),
         )
         
@@ -39,10 +39,11 @@ class DecoderBlock(nn.Module):
     def reset_parameters(self):
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                nn.init.kaiming_normal_(m.weight)
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+                nn.init.normal_(m.bias, std=1e-6)
             elif isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+                nn.init.normal_(m.bias, std=1e-6)
 
     def forward(self, x, skip=None):
         x = self.up(x)
@@ -66,9 +67,10 @@ class DecoderCup(nn.Module):
     ):
         super().__init__()
         self.head_channels = 512
+        
         self.conv_more = nn.Sequential(
             nn.Conv1d(embedding_dim, self.head_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(negative_slope=0.1, inplace=True),
             nn.BatchNorm1d(self.head_channels),
         )
         

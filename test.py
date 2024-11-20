@@ -2,4 +2,4 @@ from TransUNet.dataset import SABREDataset
 
 dataset = SABREDataset(root=r'./data/')
 
-dataset[1].plot()
+dataset[6].plot()

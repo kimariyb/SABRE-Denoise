@@ -80,7 +80,7 @@ class PreActBottleneck(nn.Module):
 
         self.gn3 = nn.GroupNorm(4, out_channels, eps=1e-6)
         
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
         
         if (stride != 1 or in_channels != out_channels):
             self.downsample = nn.Sequential(
@@ -92,22 +92,17 @@ class PreActBottleneck(nn.Module):
             
     def init_weights(self):
         # 初始化卷积层的权重和偏置
-        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='relu')
-        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_out', nonlinearity='relu')
-        nn.init.kaiming_normal_(self.conv3.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_in', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_in', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.conv3.weight, mode='fan_in', nonlinearity='leaky_relu')
         if hasattr(self, 'downsample'):
-            nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_out', nonlinearity='relu')
+            nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_in', nonlinearity='leaky_relu')
 
-        # 初始化组归一化层的权重和偏置
-        nn.init.ones_(self.gn1.weight)
-        nn.init.zeros_(self.gn1.bias)
-        nn.init.ones_(self.gn2.weight)
-        nn.init.zeros_(self.gn2.bias)
-        nn.init.ones_(self.gn3.weight)
-        nn.init.zeros_(self.gn3.bias)
+        nn.init.normal_(self.conv1.bias, std=1e-6)
+        nn.init.normal_(self.conv2.bias, std=1e-6)
+        nn.init.normal_(self.conv3.bias, std=1e-6)
         if hasattr(self, 'downsample'):
-            nn.init.ones_(self.downsample[1].weight)
-            nn.init.zeros_(self.downsample[1].bias)
+            nn.init.normal_(self.downsample[1].bias, std=1e-6)
 
     def forward(self, x):
         # Residual branch
@@ -174,7 +169,6 @@ class ResNet(nn.Module):
             
             features.append(feat)
 
-        
         return x, features[::-1]
 
 

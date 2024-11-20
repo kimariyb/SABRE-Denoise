@@ -126,14 +126,14 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, embedding_dim)
-        self.act_fn = nn.GELU()
+        self.act_fn = nn.LeakyReLU(negative_slope=0.1)
         self.dropout = nn.Dropout(dropout)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.xavier_uniform_(self.fc1.weight)
-        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.kaiming_uniform_(self.fc1.weight, mode="fan_in", nonlinearity="leaky_relu")
+        nn.init.kaiming_uniform_(self.fc2.weight, mode="fan_in", nonlinearity="leaky_relu")
         nn.init.normal_(self.fc1.bias, std=1e-6)
         nn.init.normal_(self.fc2.bias, std=1e-6)
 

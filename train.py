@@ -36,7 +36,7 @@ class Hyperparameters(Namespace):
             skip_channels=[64, 32, 16, 0],
             skip_num=3,
 
-            loss_type="mse",
+            loss_type="mae",
             num_epochs=50,
             lr_warmup_steps=10000,
             lr=2.e-04,
@@ -61,7 +61,7 @@ class Hyperparameters(Namespace):
             seed=42,
             accelerator="gpu",
             save_interval=1,
-            task="train"
+            task="test"
         )
 
 

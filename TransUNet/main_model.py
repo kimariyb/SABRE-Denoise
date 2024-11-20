@@ -13,7 +13,7 @@ class SpectralDeNoiser(nn.Module):
         # 定义上采样层
         self.upsampling = UpsamplingBilinear1d(scale_factor=upsampling)
         # 定义激活函数
-        self.relu = nn.LeakyReLU(negative_slope=0.1)
+        self.act = nn.Tanh()
 
         # 初始化权重
         self.init_weights()
@@ -22,13 +22,13 @@ class SpectralDeNoiser(nn.Module):
         # 前向传播
         x = self.conv1d(x)
         x = self.upsampling(x)
-        x = self.relu(x)
+        x = self.act(x)
         
         return x
         
     def init_weights(self):
-        nn.init.kaiming_normal_(self.conv1d.weight, mode='fan_out', nonlinearity='leaky_relu')
-        nn.init.zeros_(self.conv1d.bias)
+        nn.init.xavier_uniform_(self.conv1d.weight, gain=1)
+        nn.init.normal_(self.conv1d.bias, std=1e-6)
 
 
 class SabreNet(nn.Module):
