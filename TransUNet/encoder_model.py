@@ -74,7 +74,7 @@ class MultiHeadAttention(nn.Module):
         self.attn_dropout = nn.Dropout(attn_dropout)
         self.proj_dropout = nn.Dropout(attn_dropout)
 
-        self.act = nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        self.act = nn.LeakyReLU(negative_slope=0.01, inplace=True)
         
         self.reset_parameters()
     
@@ -126,7 +126,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, embedding_dim)
-        self.act_fn = nn.LeakyReLU(negative_slope=0.1)
+        self.act_fn = nn.LeakyReLU(negative_slope=0.01)
         self.dropout = nn.Dropout(dropout)
 
         self.reset_parameters()

@@ -28,7 +28,7 @@ class Hyperparameters(Namespace):
             embedding_dim=2048,
             ffn_embedding_dim=1024,
             num_heads=16,
-            num_layers=12,
+            num_layers=9,
             patch_size=32,
             dropout=0.8,
             attn_dropout=0.8,
@@ -37,7 +37,7 @@ class Hyperparameters(Namespace):
             skip_num=3,
 
             loss_type="mae",
-            num_epochs=50,
+            num_epochs=30,
             lr_warmup_steps=10000,
             lr=2.e-04,
             lr_patience=5,

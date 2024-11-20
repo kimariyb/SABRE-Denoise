@@ -80,7 +80,7 @@ class PreActBottleneck(nn.Module):
 
         self.gn3 = nn.GroupNorm(4, out_channels, eps=1e-6)
         
-        self.relu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
+        self.relu = nn.LeakyReLU(negative_slope=0.01, inplace=True)
         
         if (stride != 1 or in_channels != out_channels):
             self.downsample = nn.Sequential(

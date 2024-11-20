@@ -69,7 +69,8 @@ class SABREDataset(Dataset):
         csv_list = os.listdir(csv_dir)
         csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
         
-        csv_datas = []
+        csv_datas = []    
+        csv_list.sort() # 确保文件名按顺序排列
         
         # 处理数据
         for csv in csv_list:
@@ -160,6 +161,8 @@ class SABRETestDataset(SABREDataset):
         csv_dir = os.path.join(self.raw_dir)
         csv_list = os.listdir(csv_dir)
         csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
+
+        csv_list.sort() # 确保文件名按顺序排列
                 
         # 处理数据
         for csv in tqdm(csv_list, desc="Generating data"):

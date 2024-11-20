@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
@@ -143,7 +144,7 @@ class SabreModel(LightningModule):
         label_y = label[0, 0, :].reshape(-1)
         
         # 将 pred_y 中小于 0.001 的值置为 0
-        pred_y[pred_y < 0.05] = 0.0
+        pred_y[np.abs(pred_y) < 0.001] = 0.0
         
         # 绘制上下两个谱图
         plt.figure(figsize=(12, 8))
