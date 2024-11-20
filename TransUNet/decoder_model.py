@@ -23,12 +23,12 @@ class DecoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv1d(in_channels + skip_channels, out_channels, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.BatchNorm1d(out_channels),
         )
         self.conv2 = nn.Sequential(
             nn.Conv1d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.BatchNorm1d(out_channels),
         )
         
@@ -67,7 +67,7 @@ class DecoderCup(nn.Module):
         
         self.conv_more = nn.Sequential(
             nn.Conv1d(embedding_dim, self.head_channels, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.BatchNorm1d(self.head_channels),
         )
         

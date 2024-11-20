@@ -74,15 +74,15 @@ class MultiHeadAttention(nn.Module):
         self.attn_dropout = nn.Dropout(attn_dropout)
         self.proj_dropout = nn.Dropout(attn_dropout)
 
-        self.act = nn.LeakyReLU(negative_slope=0.01, inplace=True)
+        self.act = nn.GELU()
         
         self.reset_parameters()
     
     def reset_parameters(self):
-        nn.init.kaiming_normal_(self.query.weight, mode="fan_in", nonlinearity="leaky_relu")
-        nn.init.kaiming_normal_(self.key.weight, mode="fan_in", nonlinearity="leaky_relu")
-        nn.init.kaiming_normal_(self.value.weight, mode="fan_in", nonlinearity="leaky_relu")
-        nn.init.kaiming_normal_(self.out.weight, mode="fan_in", nonlinearity="leaky_relu")
+        nn.init.xavier_uniform_(self.query.weight)
+        nn.init.xavier_uniform_(self.key.weight)
+        nn.init.xavier_uniform_(self.value.weight)
+        nn.init.xavier_uniform_(self.out.weight)    
         nn.init.normal_(self.query.bias, std=1e-6)
         nn.init.normal_(self.key.bias, std=1e-6)
         nn.init.normal_(self.value.bias, std=1e-6)

@@ -28,16 +28,16 @@ class Hyperparameters(Namespace):
             embedding_dim=2048,
             ffn_embedding_dim=1024,
             num_heads=16,
-            num_layers=9,
+            num_layers=12,
             patch_size=32,
-            dropout=0.8,
-            attn_dropout=0.8,
+            dropout=0.0,
+            attn_dropout=0.0,
             decoder_channels=[256, 128, 64, 16],
             skip_channels=[64, 32, 16, 0],
             skip_num=3,
 
-            loss_type="mae",
-            num_epochs=30,
+            loss_type="rmse",
+            num_epochs=50,
             lr_warmup_steps=10000,
             lr=2.e-04,
             lr_patience=5,
@@ -72,6 +72,8 @@ def auto_start(args):
         + f"_H{args.num_heads}"
         + f"_P{args.patch_size}"
         + f"_lr_{args.lr}"
+        + f"_drop_{args.dropout}"
+        + f"_loss_{args.loss_type}"
         + f"_seed_{args.seed}"
     )
 

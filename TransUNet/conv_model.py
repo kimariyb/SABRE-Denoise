@@ -2,35 +2,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-
-# 用于实现标准卷积层的类
-class StdConv1d(nn.Conv1d):
-    def __init__(
-        self, 
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        stride=1,
-        padding=0,
-        dilation=1,
-        groups=1,
-        bias=True,
-        padding_mode='zeros', 
-        device=None,
-        dtype=None
-    ):
-        super().__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, padding_mode, device, dtype)
-
-    def forward(self, x):
-        # 标准卷积层的实现
-        # 先对输入进行标准化，即减去均值，除以标准差
-        w = self.weight
-        v, m = torch.var_mean(w, dim=[1, 2], keepdim=True, unbiased=False)
-        w = (w - m) / torch.sqrt(v + 1e-5)
-        
-        return F.conv1d(x, w, self.bias, self.stride, self.padding,
-                        self.dilation, self.groups)
         
 
 # 用于实现预激活瓶颈结构的类
@@ -45,7 +16,7 @@ class PreActBottleneck(nn.Module):
         super().__init__()
         
         # 1x1 卷积层
-        self.conv1 = StdConv1d(
+        self.conv1 = nn.Conv1d(
             in_channels=in_channels, 
             out_channels=mid_channels, 
             kernel_size=1, 
@@ -57,7 +28,7 @@ class PreActBottleneck(nn.Module):
         self.gn1 = nn.GroupNorm(4, mid_channels, eps=1e-6)
 
         # 3x3 卷积层
-        self.conv2 = StdConv1d(
+        self.conv2 = nn.Conv1d(
             in_channels=mid_channels, 
             out_channels=mid_channels,
             kernel_size=3, 
@@ -69,7 +40,7 @@ class PreActBottleneck(nn.Module):
         self.gn2 = nn.GroupNorm(4, mid_channels, eps=1e-6)
         
         # 1x1 卷积层
-        self.conv3 = StdConv1d(
+        self.conv3 = nn.Conv1d(
             in_channels=mid_channels, 
             out_channels=out_channels, 
             kernel_size=1, 
@@ -80,11 +51,11 @@ class PreActBottleneck(nn.Module):
 
         self.gn3 = nn.GroupNorm(4, out_channels, eps=1e-6)
         
-        self.relu = nn.LeakyReLU(negative_slope=0.01, inplace=True)
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
         
         if (stride != 1 or in_channels != out_channels):
             self.downsample = nn.Sequential(
-                StdConv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
+                nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
                 nn.GroupNorm(out_channels, out_channels, eps=1e-6)
             )
             
@@ -97,7 +68,6 @@ class PreActBottleneck(nn.Module):
         nn.init.kaiming_normal_(self.conv3.weight, mode='fan_out', nonlinearity='leaky_relu')
         if hasattr(self, 'downsample'):
             nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_out', nonlinearity='leaky_relu')
-
 
     def forward(self, x):
         # Residual branch
@@ -122,7 +92,7 @@ class ResNet(nn.Module):
         self.length = length
 
         self.root = nn.Sequential(
-            StdConv1d(2, self.length, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.Conv1d(2, self.length, kernel_size=7, stride=2, padding=3, bias=False),
             nn.GroupNorm(4, self.length, eps=1e-6),
             nn.ReLU(inplace=True),
         )

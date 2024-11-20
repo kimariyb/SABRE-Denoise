@@ -13,7 +13,7 @@ class SpectralDeNoiser(nn.Module):
         # 定义上采样层
         self.upsampling = UpsamplingBilinear1d(scale_factor=upsampling)
         # 定义激活函数
-        self.act = nn.Tanh()
+        self.act = nn.LeakyReLU(negative_slope=0.01)
 
         # 初始化权重
         self.init_weights()
@@ -27,7 +27,7 @@ class SpectralDeNoiser(nn.Module):
         return x
         
     def init_weights(self):
-        nn.init.xavier_uniform_(self.conv1d.weight, gain=1)
+        nn.init.kaiming_normal_(self.conv1d.weight, mode='fan_out', nonlinearity='leaky_relu')
         nn.init.normal_(self.conv1d.bias, std=1e-6)
 
 
