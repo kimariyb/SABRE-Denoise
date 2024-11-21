@@ -12,8 +12,9 @@ from scipy.signal import find_peaks
 
 class NMRData:
     def __init__(self, raw, label):
-        self.raw = self.disassemble(raw)
-        self.label = self.disassemble(label)
+        # 将 8192 -> (1, 8192) 的形状
+        self.raw = torch.reshape(raw, (1, -1))
+        self.label = torch.reshape(label, (1, -1))
         
         # raw 和 label 的尺寸必须相同
         assert self.raw.shape == self.label.shape, "raw and label must have the same shape"
@@ -27,17 +28,13 @@ class NMRData:
     def __len__(self):
         return len(self.raw)
     
-    def disassemble(self, data):
-        # 将数据分解为实部和虚部，并返回一个 tensor 列表
-        return torch.stack([data.real, data.imag], dim=-2) # (2, seq_len)
-    
     def plot(self):
         plt.figure(figsize=(12, 8))
         plt.subplot(2, 1, 1)
-        plt.plot(self.raw.numpy()[0])
+        plt.plot(self.raw.flatten().numpy())
         plt.title("Raw")
         plt.subplot(2, 1, 2)
-        plt.plot(self.label.numpy()[0])
+        plt.plot(self.label.flatten().numpy())
         plt.title("Label")
         plt.show()
   
@@ -89,10 +86,10 @@ class SABREDataset(Dataset):
                 label_data = csv_data.clone()
                 
                 # 随机添加高斯噪声
-                noise_level = np.random.uniform(0.001, 0.005)
+                noise_level = np.random.uniform(0.001, 0.008)
                 raw_data = self._noise(csv_data.clone(), noise_level)
                 
-                data = NMRData(raw=raw_data, label=label_data)
+                data = NMRData(raw=raw_data.real, label=label_data.real)
                 data_list.append(data)
    
         torch.save(data_list, self.processed_paths)
@@ -175,7 +172,7 @@ class SABRETestDataset(SABREDataset):
             )
             csv_data = self._split(csv_data, height=0.8)
             
-            data = NMRData(raw=csv_data, label=csv_data)
+            data = NMRData(raw=csv_data.real, label=csv_data.real)
             data_list.append(data)
             
         torch.save(data_list, self.processed_paths)

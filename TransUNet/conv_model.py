@@ -1,7 +1,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
         
 
 # 用于实现预激活瓶颈结构的类
@@ -9,8 +8,8 @@ class PreActBottleneck(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        out_channels: int,
         mid_channels: int,
+        out_channels: int,
         stride=1,
     ):
         super().__init__()
@@ -25,7 +24,7 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
         
-        self.gn1 = nn.GroupNorm(4, mid_channels, eps=1e-6)
+        self.bn1 = nn.BatchNorm1d(mid_channels)
 
         # 3x3 卷积层
         self.conv2 = nn.Conv1d(
@@ -37,7 +36,7 @@ class PreActBottleneck(nn.Module):
             bias=False
         )  
 
-        self.gn2 = nn.GroupNorm(4, mid_channels, eps=1e-6)
+        self.bn2 = nn.BatchNorm1d(mid_channels)
         
         # 1x1 卷积层
         self.conv3 = nn.Conv1d(
@@ -49,26 +48,18 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
 
-        self.gn3 = nn.GroupNorm(4, out_channels, eps=1e-6)
+        self.bn3 = nn.BatchNorm1d(out_channels)
         
-        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.act = nn.LeakyReLU(negative_slope=0.01)
         
         if (stride != 1 or in_channels != out_channels):
             self.downsample = nn.Sequential(
                 nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.GroupNorm(out_channels, out_channels, eps=1e-6)
+                nn.BatchNorm1d(out_channels)
             )
+        
+        self.dropout = nn.Dropout(0.5)
             
-        self.init_weights()
-            
-    def init_weights(self):
-        # 初始化卷积层的权重和偏置
-        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='leaky_relu')
-        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_out', nonlinearity='leaky_relu')
-        nn.init.kaiming_normal_(self.conv3.weight, mode='fan_out', nonlinearity='leaky_relu')
-        if hasattr(self, 'downsample'):
-            nn.init.kaiming_normal_(self.downsample[0].weight, mode='fan_out', nonlinearity='leaky_relu')
-
     def forward(self, x):
         # Residual branch
         residual = x
@@ -76,51 +67,51 @@ class PreActBottleneck(nn.Module):
             residual = self.downsample(x)
 
         # Unit's branch
-        y = self.relu(self.gn1(self.conv1(x)))
-        y = self.relu(self.gn2(self.conv2(y)))
-        y = self.gn3(self.conv3(y))
-
-        y = self.relu(residual + y)
+        y = self.act(self.bn1(self.conv1(x)))
+        y = self.dropout(y)  
+        
+        y = self.act(self.bn2(self.conv2(y)))
+        y = self.dropout(y)  
+        
+        y = self.bn3(self.conv3(y))
+        y = self.act(residual + y)
+        y = self.dropout(y)  
         
         return y
 
 
 class ResNet(nn.Module):
-    def __init__(self, length=4):
+    """
+    ResNet Model for 1D signals.
+    """
+    def __init__(self):
         super().__init__()
 
-        self.length = length
-
         self.root = nn.Sequential(
-            nn.Conv1d(2, self.length, kernel_size=7, stride=2, padding=3, bias=False),
-            nn.GroupNorm(4, self.length, eps=1e-6),
-            nn.ReLU(inplace=True),
-        )
-
-        self.block1 = nn.Sequential(
-            PreActBottleneck(self.length, self.length * 4, self.length),
-            PreActBottleneck(self.length * 4, self.length * 4, self.length),
-        )
-
-        self.block2 = nn.Sequential(
-            PreActBottleneck(self.length * 4, self.length * 8, self.length * 2, stride=2),
-            PreActBottleneck(self.length * 8, self.length * 8, self.length * 2),
-        )
-
-        self.block3 = nn.Sequential(
-            PreActBottleneck(self.length * 8, self.length * 16, self.length * 4, stride=2),
-            PreActBottleneck(self.length * 16, self.length * 16, self.length * 4)
+            nn.Conv1d(in_channels=1, out_channels=4, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm1d(num_features=4),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
         
-        self.body = nn.ModuleList([self.block1, self.block2, self.block3])
-
+        self.block1 = PreActBottleneck(in_channels=4, mid_channels=4, out_channels=16)
+      
+        self.block2 = PreActBottleneck(in_channels=16, mid_channels=8, out_channels=32, stride=2)
+        
+        self.block3 = PreActBottleneck(in_channels=32, mid_channels=16, out_channels=64, stride=2)
+        
+        self.block4 = PreActBottleneck(in_channels=64, mid_channels=32, out_channels=128, stride=2)
+          
+        self.body = nn.ModuleList([self.block1, self.block2, self.block3, self.block4])
+        
+        self.pool = nn.MaxPool1d(kernel_size=3, stride=2, padding=0) 
+        
+        
     def forward(self, x):
         features = []
-        
         b, c, l = x.size()         
         x = self.root(x)
-        x = nn.MaxPool1d(kernel_size=3, stride=2, padding=0)(x)
-                
+        x = self.pool(x)
+
         for i in range(len(self.body)):
             x = self.body[i](x)
 
@@ -133,7 +124,7 @@ class ResNet(nn.Module):
                 feat = x
             
             features.append(feat)
-
+            
         return x, features[::-1]
 
 

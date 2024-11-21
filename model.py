@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 
 from TransUNet.main_model import create_model
-from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss
+from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss, huber_loss, log_cosh_loss
 
 
 class SabreModel(LightningModule):
@@ -121,13 +121,17 @@ class SabreModel(LightningModule):
             The loss between the predicted and the label.
         """
         if self.hparams.loss_type == "rmse":
-            loss = rmse_loss(pred[:, 0, :], label[:, 0, :])
+            loss = rmse_loss(pred, label)
         elif self.hparams.loss_type == "nmse":
-            loss = nmse_loss(pred[:, 0, :], label[:, 0, :])
+            loss = nmse_loss(pred, label)
         elif self.hparams.loss_type == "mse":
-            loss = mse_loss(pred[:, 0, :], label[:, 0, :])
+            loss = mse_loss(pred, label)
         elif self.hparams.loss_type == "mae":
-            loss = mae_loss(pred[:, 0, :], label[:, 0, :])
+            loss = mae_loss(pred, label)
+        elif self.hparams.loss_type == "huber":
+            loss = huber_loss(pred, label)
+        elif self.hparams.loss_type == "log_cosh":
+            loss = log_cosh_loss(pred, label)  
         else:
             raise ValueError("Invalid loss function.")
         
@@ -142,9 +146,6 @@ class SabreModel(LightningModule):
         x = range(pred.shape[2])
         pred_y = pred[0, 0, :].reshape(-1)
         label_y = label[0, 0, :].reshape(-1)
-        
-        # 将 pred_y 中小于 0.001 的值置为 0
-        pred_y[np.abs(pred_y) < 0.001] = 0.0
         
         # 绘制上下两个谱图
         plt.figure(figsize=(12, 8))

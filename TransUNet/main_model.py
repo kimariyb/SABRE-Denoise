@@ -1,42 +1,12 @@
-import torch
 import torch.nn as nn
 
 from TransUNet.encoder_model import Transformer
-from TransUNet.decoder_model import DecoderCup, UpsamplingBilinear1d
-
-
-class SpectralDeNoiser(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, upsampling=1):
-        super(SpectralDeNoiser, self).__init__()        
-        # 定义卷积层
-        self.conv1d = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
-        # 定义上采样层
-        self.upsampling = UpsamplingBilinear1d(scale_factor=upsampling)
-        # 定义激活函数
-        self.act = nn.LeakyReLU(negative_slope=0.01)
-
-        # 初始化权重
-        self.init_weights()
-
-    def forward(self, x):
-        # 前向传播
-        x = self.conv1d(x)
-        x = self.upsampling(x)
-        x = self.act(x)
-        
-        return x
-        
-    def init_weights(self):
-        nn.init.kaiming_normal_(self.conv1d.weight, mode='fan_out', nonlinearity='leaky_relu')
-        nn.init.normal_(self.conv1d.bias, std=1e-6)
+from TransUNet.decoder_model import DecoderCup
 
 
 class SabreNet(nn.Module):
     def __init__(
         self,  
-        vis: bool,
-        seq_length: int, 
-        in_channels: int,
         embedding_dim: int, 
         ffn_embedding_dim: int, 
         num_heads: int, 
@@ -44,35 +14,18 @@ class SabreNet(nn.Module):
         patch_size: int, 
         dropout: float, 
         attn_dropout: float, 
-        decoder_channels: list, 
-        skip_channels: list,
-        skip_num: int,
     ):
         super(SabreNet, self).__init__()
         self.transformer = Transformer(
-            vis=vis, seq_length=seq_length, in_channels=in_channels, embedding_dim=embedding_dim, 
-            ffn_embedding_dim=ffn_embedding_dim, num_heads=num_heads, num_layers=num_layers, 
+            embedding_dim=embedding_dim, ffn_embedding_dim=ffn_embedding_dim, num_heads=num_heads, num_layers=num_layers, 
             patch_size=patch_size, dropout=dropout, attn_dropout=attn_dropout
         )
-        self.decoder = DecoderCup(
-            embedding_dim=64, decoder_channels=decoder_channels, skip_channels=skip_channels, skip_num=skip_num
-        )
-        self.denoiser = SpectralDeNoiser(
-            in_channels=decoder_channels[-1],
-            out_channels=2,
-        )
+        self.decoder = DecoderCup()
         
-        self.reset_parameters()
-        
-    def reset_parameters(self):
-        self.transformer.init_weights()
-        self.decoder.init_weights()
-        self.denoiser.init_weights()
 
     def forward(self, x):
         x, attn_weights, features = self.transformer(x)  # (B, n_patch, hidden)
-        x = self.decoder(x, features)
-        logits = self.denoiser(x)
+        logits = self.decoder(x, features)
         
         return logits    
 
@@ -92,9 +45,6 @@ def create_model(args):
         The created model.
     """
     net_args = dict(
-        vis=args['vis'],
-        seq_length=args['seq_length'],
-        in_channels=args['in_channels'],
         embedding_dim=args['embedding_dim'],
         ffn_embedding_dim=args['ffn_embedding_dim'],
         num_heads=args['num_heads'],
@@ -102,13 +52,24 @@ def create_model(args):
         patch_size=args['patch_size'],
         dropout=args['dropout'],
         attn_dropout=args['attn_dropout'],
-        skip_num=args['skip_num'],
-        decoder_channels=args['decoder_channels'],
-        skip_channels=args['skip_channels'],
     )
     
     model = SabreNet(**net_args)
     
+    # Initialize weights and parameters
+    for m in model.modules():
+        if isinstance(m, nn.Conv1d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm1d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            nn.init.xavier_uniform_(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+                
     return model
 
 
