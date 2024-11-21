@@ -58,7 +58,7 @@ class PreActBottleneck(nn.Module):
                 nn.BatchNorm1d(out_channels)
             )
         
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.2)
             
     def forward(self, x):
         # Residual branch

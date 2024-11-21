@@ -30,7 +30,7 @@ class Hyperparameters(Namespace):
             dropout=0.5,
             attn_dropout=0.5,
 
-            loss_type="log_cosh",
+            loss_type="mae",
             num_epochs=50,
             lr_warmup_steps=10000,
             lr=2.e-04,
