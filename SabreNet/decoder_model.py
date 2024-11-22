@@ -33,9 +33,14 @@ class DecoderBlock(nn.Module):
             nn.BatchNorm1d(out_channels),
         )
         
+        self.conv3 = nn.Sequential(
+            nn.Conv1d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.BatchNorm1d(out_channels),
+        )
+        
         self.up = UpsamplingBilinear1d(scale_factor=2)  # Using linear interpolation for 1D data
         
-        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x, skip=None):
         x = self.up(x)
@@ -45,7 +50,7 @@ class DecoderBlock(nn.Module):
 
         x = self.conv1(x)
         x = self.conv2(x)
-        x = self.dropout(x)  
+        x = self.conv3(x)  
         
         return x
     
@@ -55,27 +60,24 @@ class DecoderCup(nn.Module):
         super().__init__()
         
         self.root = nn.Sequential(
-            nn.Conv1d(128, 256, kernel_size=3, padding=1, stride=1, bias=False),
+            nn.Conv1d(512, 1024, kernel_size=3, padding=1, stride=1, bias=False),
             nn.LeakyReLU(negative_slope=0.01),
-            nn.BatchNorm1d(256),
+            nn.BatchNorm1d(1024),
         )
         
         self.body = nn.ModuleList([
+            DecoderBlock(in_channels=1024, out_channels=512, skip_channels=512),
+            DecoderBlock(in_channels=512, out_channels=256, skip_channels=256),
             DecoderBlock(in_channels=256, out_channels=128, skip_channels=128),
             DecoderBlock(in_channels=128, out_channels=64, skip_channels=64),
-            DecoderBlock(in_channels=64, out_channels=32, skip_channels=32),
-            DecoderBlock(in_channels=32, out_channels=16, skip_channels=16),
+            DecoderBlock(in_channels=64, out_channels=32, skip_channels=32),  # Adjusted to match the skip channels
         ])
         
-        self.denoiser = DecoderBlock(in_channels=16, out_channels=1, skip_channels=0) 
+        self.denoiser = nn.Sequential(
+            DecoderBlock(in_channels=32, out_channels=1, skip_channels=0),
+        )
     
     def forward(self, x, features=None):
-        # reshape from (B, n_patch, hidden) to (B, hidden, n_patch)
-        B, n_patch, hidden = x.size()  
-        
-        x.permute(0, 2, 1)
-        x = x.contiguous().view(B, (n_patch * hidden) // 256, 256)  
-        
         x = self.root(x)  
 
         for i, block in enumerate(self.body):

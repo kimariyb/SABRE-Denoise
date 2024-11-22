@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 
-from TransUNet.dataset import SABREDataset, SABRETestDataset
+from SabreNet.dataset import SABREDataset, SABRETestDataset
 
 
 class SabreDataCollator:

@@ -86,7 +86,7 @@ class SABREDataset(Dataset):
                 label_data = csv_data.clone()
                 
                 # 随机添加高斯噪声
-                noise_level = np.random.uniform(0.001, 0.008)
+                noise_level = np.random.uniform(0.001, 0.01)
                 raw_data = self._noise(csv_data.clone(), noise_level)
                 
                 data = NMRData(raw=raw_data.real, label=label_data.real)

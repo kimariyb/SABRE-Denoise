@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSum
 from data import SabreDataModule, SabreTestModule
 from model import SabreModel
 
-from TransUNet.dataset import NMRData
+from SabreNet.dataset import NMRData
 
 from argparse import Namespace
 from datetime import datetime
@@ -22,14 +22,6 @@ class Hyperparameters(Namespace):
         # Initialize default values
         super().__init__(
             load_model=None,
-            embedding_dim=2048,
-            ffn_embedding_dim=8192,
-            num_heads=16,
-            num_layers=9,
-            patch_size=16,
-            dropout=0.5,
-            attn_dropout=0.5,
-
             loss_type="mae",
             num_epochs=50,
             lr_warmup_steps=10000,
@@ -62,11 +54,7 @@ class Hyperparameters(Namespace):
 def auto_start(args):
     dir_name = (
         f"bs_{args.batch_size}"
-        + f"_L{args.num_layers}_D{args.embedding_dim}_F{args.ffn_embedding_dim}"
-        + f"_H{args.num_heads}"
-        + f"_P{args.patch_size}"
         + f"_lr_{args.lr}"
-        + f"_drop_{args.dropout}"
         + f"_loss_{args.loss_type}"
         + f"_seed_{args.seed}"
     )

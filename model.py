@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch_lightning import LightningModule
 
-from TransUNet.main_model import create_model
+from SabreNet.main_model import create_model
 from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss, huber_loss, log_cosh_loss
 
 
@@ -16,7 +16,7 @@ class SabreModel(LightningModule):
         super(SabreModel, self).__init__()
 
         self.save_hyperparameters(hparams)
-        self.model = create_model(self.hparams)
+        self.model = create_model()
         self._reset_losses_dict()
         
     def configure_optimizers(self):
