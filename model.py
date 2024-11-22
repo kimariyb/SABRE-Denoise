@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from pytorch_lightning import LightningModule
 
@@ -26,18 +26,14 @@ class SabreModel(LightningModule):
             weight_decay=self.hparams.weight_decay,
         )
 
-        scheduler = ReduceLROnPlateau(
+        scheduler = CosineAnnealingLR(
             optimizer,
-            "min",
-            factor=self.hparams.lr_factor,
-            patience=self.hparams.lr_patience,
-            min_lr=self.hparams.lr_min,
+            T_max=self.hparams.lr_cosine_length,
+            eta_min=self.hparams.lr_min,
         )
-        
         lr_scheduler = {
             "scheduler": scheduler,
-            "monitor": "val_loss",
-            "interval": "epoch",
+            "interval": "step",
             "frequency": 1,
         }
 

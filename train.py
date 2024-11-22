@@ -25,10 +25,9 @@ class Hyperparameters(Namespace):
             loss_type="mae",
             num_epochs=50,
             lr_warmup_steps=10000,
-            lr=2.e-04,
-            lr_patience=5,
+            lr=1.e-03,
             lr_min=1.e-07,
-            lr_factor=0.8,
+            lr_cosine_length=10000,
             weight_decay=1.e-03,
             early_stopping_patience=15,
         

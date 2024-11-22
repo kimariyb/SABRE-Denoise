@@ -95,36 +95,16 @@ class ResNet(nn.Module):
             nn.BatchNorm1d(num_features=8),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
-        
-        self.block1 = nn.Sequential(
+
+        self.body = nn.ModuleList([
             PreActBottleneck(in_channels=8, mid_channels=8, out_channels=32),
-            PreActBottleneck(in_channels=32, mid_channels=8, out_channels=32),
-        )
-      
-        self.block2 = nn.Sequential(
             PreActBottleneck(in_channels=32, mid_channels=16, out_channels=64, stride=2),
-            PreActBottleneck(in_channels=64, mid_channels=16, out_channels=64),  
-        )
-        
-        self.block3 = nn.Sequential(
             PreActBottleneck(in_channels=64, mid_channels=32, out_channels=128, stride=2),
-            PreActBottleneck(in_channels=128, mid_channels=32, out_channels=128), 
-        )
-        
-        self.block4 = nn.Sequential(
             PreActBottleneck(in_channels=128, mid_channels=64, out_channels=256, stride=2),
-            PreActBottleneck(in_channels=256, mid_channels=64, out_channels=256),  
-        )
-        
-        self.block5 = nn.Sequential(
             PreActBottleneck(in_channels=256, mid_channels=128, out_channels=512, stride=2),
-            PreActBottleneck(in_channels=512, mid_channels=128, out_channels=512), 
-        )
-          
-        self.body = nn.ModuleList([self.block1, self.block2, self.block3, self.block4, self.block5])
+        ])
         
         self.pool = nn.MaxPool1d(kernel_size=3, stride=2, padding=0) 
-        
         
     def forward(self, x):
         features = []
