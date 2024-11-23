@@ -8,8 +8,8 @@ from pytorch_lightning.strategies import SingleDeviceStrategy
 from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 
-from data import SabreDataModule, SabreTestModule
-from model import SabreModel
+from sabre_data import SabreDataModule, SabreTestModule
+from sabre_model import SabreModel
 
 from SabreNet.dataset import NMRData
 
