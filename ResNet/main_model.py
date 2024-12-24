@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-from SabreNet.encoder_model import ResNet
-from SabreNet.decoder_model import DecoderCup
+from ResNet.encoder_model import ResNet
+from ResNet.decoder_model import DecoderCup
 
 
 class SabreNet(nn.Module):
