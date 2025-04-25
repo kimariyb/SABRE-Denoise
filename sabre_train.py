@@ -11,8 +11,6 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSum
 from sabre_data import SabreDataModule, SabreTestModule
 from sabre_model import SabreModel
 
-from SabreNet.dataset import NMRData
-
 from argparse import Namespace
 from datetime import datetime
 
