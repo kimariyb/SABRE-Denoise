@@ -163,4 +163,4 @@ cython_debug/
 data/processed/
 test/processed/
 
-log/
+logs/

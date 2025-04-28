@@ -132,10 +132,19 @@ class SABREDataset(Dataset):
     def plot_data(self, index):
         r"""可视化数据"""
         fig, ax = plt.subplots(2, 1, figsize=(10, 6))
-        ax[0].plot(self.raw[index].numpy().real)
-        ax[0].set_title("Raw Data")
-        ax[1].plot(self.label[index].numpy().real)
-        ax[1].set_title("Label Data")
+        # generate the x-axis (8192,)
+        x = np.arange(8192)
+    
+        # generate the y-axis
+        raw_data = self.raw[index].numpy().reshape(-1)
+        label_data = self.label[index].numpy().reshape(-1)
+        
+        # plot the raw data
+        ax[0].plot(x, raw_data, label='raw')
+        ax[0].set_title('Raw Data')
+        # plot the label data
+        ax[1].plot(x, label_data, label='label')
+        ax[1].set_title('Label Data')
         plt.show()
   
   
