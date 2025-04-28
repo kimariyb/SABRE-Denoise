@@ -37,7 +37,7 @@ def get_args():
     )
     parser.add_argument(
         "--loss-type",
-        default="nmse",
+        default="mae",
         type=str,
         choices=["mse", "rmse", "nmse", "mae", "huber", "log_cosh"],
         help="loss function",

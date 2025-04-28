@@ -1,3 +1,4 @@
+import os
 import torch
 import matplotlib.pyplot as plt
 
@@ -5,7 +6,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch_lightning import LightningModule
-from ResNet.main_model import create_model
+from ResNet.model import SabreNet
 
 from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss, huber_loss, log_cosh_loss
 
@@ -15,7 +16,7 @@ class SabreModel(LightningModule):
         super(SabreModel, self).__init__()
 
         self.save_hyperparameters(hparams)
-        self.model = create_model()
+        self.model = SabreNet()
         self._reset_losses_dict()
         
     def configure_optimizers(self):
@@ -56,7 +57,7 @@ class SabreModel(LightningModule):
     def test_step(self, batch, batch_idx):
         with torch.set_grad_enabled(False):
             pred, label = self(batch)
-                    
+
         self._plot_spectra(pred, label)
         
     def _process_step(self, batch, stage):
@@ -144,14 +145,31 @@ class SabreModel(LightningModule):
         pred_y = pred[0, 0, :].reshape(-1)
         label_y = label[0, 0, :].reshape(-1)
         
+        # 如果 pred_y < 1e-4, 则设为 0
+        pred_y[pred_y < 1e-4] = 0
+        
         # 绘制上下两个谱图
-        plt.figure(figsize=(12, 8))
-        plt.subplot(2, 1, 1)
-        plt.plot(x, pred_y, color='r')
-        plt.title("Predicted")
-        plt.subplot(2, 1, 2)
-        plt.plot(x, label_y, color='b')
-        plt.title("Label")
-        plt.show()
+        fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+        axs[0].plot(x, pred_y, color='r')    
+        axs[0].set_title("Predicted")
+
+        axs[1].plot(x, label_y, color='b')
+        axs[1].set_title("Label")
+
+        # 保存图片
+        save_name = "spectra.png"
+        
+        # 自动处理图片名字
+        files = os.listdir(os.path.join(self.hparams.log_dir, "metrics"))
+        count = 1
+
+        while save_name in files:
+            save_name = f"spectra_{count}.png"
+            count += 1
+
+        fig.savefig(os.path.join(self.hparams.log_dir, "metrics", save_name))
+
+
+
 
         

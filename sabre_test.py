@@ -1,7 +1,8 @@
-from ResNet.dataset import SABREDataset
+from ResNet.dataset import SABREDataset, SABRETestDataset
 
 
 if __name__ == '__main__':
     dataset = SABREDataset("./data")
+    test_dataset = SABRETestDataset("./test")
     
-    dataset.plot_data(1000)
+    test_dataset.plot_data(7)

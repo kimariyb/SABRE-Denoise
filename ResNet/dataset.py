@@ -12,7 +12,7 @@ from scipy.signal import find_peaks
   
 class SABREDataset(Dataset):
     r"""SABRE去噪数据集基类"""
-    def __init__(self, root, nums=3000):
+    def __init__(self, root, nums=5000):
         self.root = root   
         self.nums = nums
         self.data = None
@@ -168,7 +168,7 @@ class SABRETestDataset(SABREDataset):
             clean_data = self._split_data(clean_data, height=0.8)
             
             # data[:, 0] is noisy data, data[:, 1] is clean data
-            data = np.stack((clean_data, clean_data), axis=1)
+            data = np.stack((clean_data.real, clean_data.real), axis=1)
             
             # save the raw data and label data to the list
             data_list.append(data)
