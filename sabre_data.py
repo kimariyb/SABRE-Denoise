@@ -1,32 +1,19 @@
-import random
-import torch
+import os
 
 from torch.utils.data import Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 
 from ResNet.dataset import SABREDataset, SABRETestDataset
+from utils.splitter import make_splits
 
 
-class SabreDataCollator:
-    def __call__(self, features):
-        batch = dict()
-        
-        batch["labels"] = torch.stack(
-            [feat.label for feat in features]
-        )
-        
-        batch["raws"] = torch.stack(
-            [feat.raw for feat in features]
-        )
-        
-        return batch  
-
-
-class SabreTestModule(LightningDataModule): 
-    def __init__(self, root):
-        super(SabreTestModule, self).__init__()
-        self.dataset = SABRETestDataset(root=root)
-        self.collator = SabreDataCollator()
+class SabreTestDataModule(LightningDataModule): 
+    def __init__(self, hparams):
+        super(SabreTestDataModule, self).__init__()
+        self.hparams.update(hparams.__dict__) if hasattr(
+            hparams, "__dict__"
+        ) else self.hparams.update(hparams)
+        self.dataset = SABRETestDataset(root=self.hparams["test_root"])
         
     def test_dataloader(self):
         dataloader = DataLoader(
@@ -36,7 +23,6 @@ class SabreTestModule(LightningDataModule):
             num_workers=1,
             pin_memory=True,
             drop_last=False,
-            collate_fn=self.collator,
         )
         
         return dataloader
@@ -53,18 +39,21 @@ class SabreDataModule(LightningDataModule):
         
     def prepare_dataset(self):  
         # Load dataset
-        self.dataset = SABREDataset(root=self.hparams["dataset_root"])
-        # 分割 indices
-        num_samples = len(self.dataset)
-        train_size = int(0.9 * num_samples)
+        self.dataset = SABREDataset(root=self.hparams["train_root"])
         
-        self.idx_train = random.sample(range(num_samples), train_size)
-        self.idx_val = [i for i in range(num_samples) if i not in self.idx_train]
-        
+        self.idx_train, self.idx_val = make_splits(
+            dataset_len=len(self.dataset), 
+            train_size=self.hparams["train_size"],
+            val_size=self.hparams["val_size"],
+            seed=self.hparams["seed"],
+            filename=os.path.join(self.hparams["log_dir"], "splits.npz"),
+            splits=self.hparams["splits"],
+        )
+
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}"
         )
-        
+
         self.train_dataset = Subset(self.dataset, self.idx_train)
         self.val_dataset = Subset(self.dataset, self.idx_val)
         
@@ -86,8 +75,6 @@ class SabreDataModule(LightningDataModule):
             batch_size = self.hparams["inference_batch_size"]
             shuffle = False
             
-        collate_fn = SabreDataCollator()
-
         dataloader = DataLoader(
             dataset=dataset,
             batch_size=batch_size,
@@ -95,7 +82,6 @@ class SabreDataModule(LightningDataModule):
             num_workers=self.hparams["num_workers"],
             pin_memory=True,
             drop_last=False,
-            collate_fn=collate_fn
         )
         
         if store_dataloader:

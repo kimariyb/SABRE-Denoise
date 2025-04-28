@@ -23,7 +23,7 @@ class PreActBottleneck(nn.Module):
     ):
         super().__init__()
         
-        # 1x1 卷积层
+        # 1x1 卷积层, in_channels -> mid_channels
         self.conv1 = nn.Conv1d(
             in_channels=in_channels, 
             out_channels=mid_channels, 
@@ -33,9 +33,9 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
         
-        self.gn1 = nn.GroupNorm(num_groups=8, num_channels=mid_channels)
+        self.bn1 = nn.BatchNorm1d(mid_channels)
 
-        # 3x3 卷积层
+        # 3x3 卷积层, mid_channels -> mid_channels
         self.conv2 = StdConv1d(
             in_channels=mid_channels, 
             out_channels=mid_channels,
@@ -45,9 +45,9 @@ class PreActBottleneck(nn.Module):
             bias=False
         )  
 
-        self.gn2 = nn.GroupNorm(num_groups=8, num_channels=mid_channels)
+        self.bn2 =nn.BatchNorm1d(mid_channels)
         
-        # 1x1 卷积层
+        # 1x1 卷积层, mid_channels -> out_channels
         self.conv3 = StdConv1d(
             in_channels=mid_channels, 
             out_channels=out_channels, 
@@ -57,14 +57,14 @@ class PreActBottleneck(nn.Module):
             bias=False
         )
 
-        self.gn3 = nn.GroupNorm(num_groups=8, num_channels=out_channels)
+        self.bn3 = nn.BatchNorm1d(out_channels)
 
         self.act = nn.LeakyReLU(negative_slope=0.01, inplace=True)
         
         if (stride != 1 or in_channels != out_channels):
             self.downsample = nn.Sequential(
                 StdConv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.GroupNorm(out_channels, out_channels)
+                nn.BatchNorm1d(out_channels)
             )
         
     def forward(self, x):
@@ -74,9 +74,9 @@ class PreActBottleneck(nn.Module):
             residual = self.downsample(x)
 
         # Unit's branch
-        y = self.act(self.gn1(self.conv1(x)))
-        y = self.act(self.gn2(self.conv2(y)))
-        y = self.gn3(self.conv3(y))
+        y = self.act(self.bn1(self.conv1(x)))
+        y = self.act(self.bn2(self.conv2(y)))
+        y = self.bn3(self.conv3(y))
         
         y = self.act(residual + y)
         
@@ -97,11 +97,11 @@ class ResNet(nn.Module):
         )
 
         self.body = nn.ModuleList([
-            PreActBottleneck(in_channels=8, mid_channels=8, out_channels=32),
+            PreActBottleneck(in_channels=8, mid_channels=4, out_channels=16),
+            PreActBottleneck(in_channels=16, mid_channels=8, out_channels=32, stride=2),
             PreActBottleneck(in_channels=32, mid_channels=16, out_channels=64, stride=2),
             PreActBottleneck(in_channels=64, mid_channels=32, out_channels=128, stride=2),
             PreActBottleneck(in_channels=128, mid_channels=64, out_channels=256, stride=2),
-            PreActBottleneck(in_channels=256, mid_channels=128, out_channels=512, stride=2),
         ])
         
         self.pool = nn.MaxPool1d(kernel_size=3, stride=2, padding=0) 
@@ -114,7 +114,6 @@ class ResNet(nn.Module):
 
         for i in range(len(self.body)):
             x = self.body[i](x)
-
             right_size = l // (2 ** (i + 1))
             
             if x.size()[2] != right_size:
@@ -122,7 +121,6 @@ class ResNet(nn.Module):
                 feat[:, :, 0:x.size()[2]] = x[:]
             else:
                 feat = x
-            
             features.append(feat)
 
         return x, features[::-1]

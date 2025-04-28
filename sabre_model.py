@@ -2,7 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch_lightning import LightningModule
 from ResNet.main_model import create_model
@@ -25,21 +25,27 @@ class SabreModel(LightningModule):
             weight_decay=self.hparams.weight_decay,
         )
 
-        scheduler = CosineAnnealingLR(
+        scheduler = ReduceLROnPlateau(
             optimizer,
-            T_max=self.hparams.lr_cosine_length,
-            eta_min=self.hparams.lr_min,
+            "min",
+            factor=self.hparams.lr_factor,
+            patience=self.hparams.lr_patience,
+            min_lr=self.hparams.lr_min,
+            cooldown=20
         )
+        
         lr_scheduler = {
             "scheduler": scheduler,
-            "interval": "step",
+            "monitor": "val_loss",
+            "interval": "epoch",
             "frequency": 1,
         }
 
         return [optimizer], [lr_scheduler]
     
     def forward(self, batch):
-        return self.model(batch['raws'])
+        raw_data, label_data = batch
+        return self.model(raw_data), label_data
     
     def training_step(self, batch, batch_idx):
         return self._process_step(batch, "train")
@@ -49,22 +55,18 @@ class SabreModel(LightningModule):
     
     def test_step(self, batch, batch_idx):
         with torch.set_grad_enabled(False):
-            pred = self(batch)
-            
-        label = batch['labels']
-        
+            pred, label = self(batch)
+                    
         self._plot_spectra(pred, label)
         
     def _process_step(self, batch, stage):
         with torch.set_grad_enabled(stage == "train"):
-            pred = self(batch)
+            pred, label = self(batch)
             
-        label = batch['labels']
-
-        loss = 0.0
-        loss = self._calc_loss(pred, label)
-        
-        self.losses[stage].append(loss.detach())
+            loss = 0.0
+            loss = self._calc_loss(pred, label)
+            
+            self.losses[stage].append(loss.detach())
         
         return loss
     
@@ -100,7 +102,7 @@ class SabreModel(LightningModule):
         }
         
     def _calc_loss(self, pred, label):
-        """
+        r"""
         Calculate the loss between the predicted and the label.
         
         Parameters

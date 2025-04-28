@@ -12,13 +12,14 @@ class SabreNet(nn.Module):
 
     def forward(self, x):
         x, features = self.encoder(x)  # (B, n_patch, hidden)
+        
         logits = self.decoder(x, features)
         
         return logits    
 
     
 def create_model():
-    """
+    r"""
     Create a model from the given args.
     
     Parameters

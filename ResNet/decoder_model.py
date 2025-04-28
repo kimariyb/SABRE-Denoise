@@ -53,21 +53,22 @@ class DecoderCup(nn.Module):
         super().__init__()
         
         self.root = nn.Sequential(
-            nn.Conv1d(512, 1024, kernel_size=3, padding=1, stride=1),
+            nn.Conv1d(256, 512, kernel_size=3, padding=1, stride=1),
             nn.LeakyReLU(negative_slope=0.01),
-            nn.BatchNorm1d(1024),
+            nn.BatchNorm1d(512),
         )
         
         self.body = nn.ModuleList([
-            DecoderBlock(in_channels=1024, out_channels=512, skip_channels=512),
             DecoderBlock(in_channels=512, out_channels=256, skip_channels=256),
             DecoderBlock(in_channels=256, out_channels=128, skip_channels=128),
             DecoderBlock(in_channels=128, out_channels=64, skip_channels=64),
-            DecoderBlock(in_channels=64, out_channels=32, skip_channels=32),  # Adjusted to match the skip channels
+            DecoderBlock(in_channels=64, out_channels=32, skip_channels=32),
+            DecoderBlock(in_channels=32, out_channels=16, skip_channels=16),  # Adjusted to match the skip channels
         ])
         
         self.denoiser = nn.Sequential(
-            DecoderBlock(in_channels=32, out_channels=1, skip_channels=0),
+            DecoderBlock(in_channels=16, out_channels=1, skip_channels=0),
+            nn.Tanh(),
         )
     
     def forward(self, x, features=None):

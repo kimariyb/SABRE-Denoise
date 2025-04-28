@@ -9,127 +9,32 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 from scipy.signal import find_peaks
 
-
-class NMRData:
-    def __init__(self, raw, label):
-        # 将 8192 -> (1, 8192) 的形状
-        self.raw = torch.reshape(raw, (1, -1))
-        self.label = torch.reshape(label, (1, -1))
-        
-        # raw 和 label 的尺寸必须相同
-        assert self.raw.shape == self.label.shape, "raw and label must have the same shape"
-    
-    def __repr__(self):
-        return f"NMRData(raw={self.raw}, label={self.label})"
-    
-    def __getitem__(self, index):
-        return self.raw[index], self.label[index]
-    
-    def __len__(self):
-        return len(self.raw)
-    
-    def plot(self):
-        plt.figure(figsize=(12, 8))
-        plt.subplot(2, 1, 1)
-        plt.plot(self.raw.flatten().numpy())
-        plt.title("Raw")
-        plt.subplot(2, 1, 2)
-        plt.plot(self.label.flatten().numpy())
-        plt.title("Label")
-        plt.show()
-  
   
 class SABREDataset(Dataset):
-    def __init__(self, root, nums=5000):
+    r"""SABRE去噪数据集基类"""
+    def __init__(self, root, nums=3000):
         self.root = root   
         self.nums = nums
         self.data = None
         
-        if not os.path.exists(self.processed_paths):
-            # 如果没有这个文件夹，则创建
+        if not os.path.exists(self.processed_path):
             os.makedirs(self.processed_dir, exist_ok=True)
             self.process()
         
-        self.data = torch.load(self.processed_paths)
+        self.data = np.load(self.processed_path, allow_pickle=True)
+        # 转换为 Tensor
+        self.data = torch.from_numpy(self.data).type(torch.float32)
+        
+        # get the raw and label
+        self.raw = self.data[:, :, 0].unsqueeze(1)
+        self.label = self.data[:, :, 1].unsqueeze(1)
         
     def __getitem__(self, index):
-        return self.data[index]
-    
+        return self.raw[index], self.label[index]
+
     def __len__(self):
-        return len(self.data)
-    
-    def process(self): 
-        data_list = []
+        return len(self.raw)
         
-        # 读取原始数据
-        csv_dir = os.path.join(self.raw_dir)
-        csv_list = os.listdir(csv_dir)
-        csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
-        
-        csv_datas = []    
-        csv_list.sort() # 确保文件名按顺序排列
-        
-        # 处理数据
-        for csv in csv_list:
-            csv_path = os.path.join(csv_dir, csv)
-            csv_data = pd.read_csv(csv_path, header=None, delim_whitespace=True).iloc[:, 1:].values
-            csv_data = torch.complex(
-                torch.tensor(csv_data[:, 0], dtype=torch.float32),
-                torch.tensor(csv_data[:, 1], dtype=torch.float32)
-            )
-            csv_data = self._split(csv_data, height=0.008)
-            csv_datas.append(csv_data)
-            
-        # 生成数据
-        for i in tqdm(range(self.nums), desc="Generating data"):
-            for csv_data in csv_datas:
-                label_data = csv_data.clone()
-                
-                # 随机添加高斯噪声
-                noise_level = np.random.uniform(0.001, 0.01)
-                raw_data = self._noise(csv_data.clone(), noise_level)
-                
-                data = NMRData(raw=raw_data.real, label=label_data.real)
-                data_list.append(data)
-   
-        torch.save(data_list, self.processed_paths)
-        
-    def _split(self, data, height=0.008):
-        # 首先对数据进行归一化
-        data = self.normalize(data)
-        # 找到峰值，并将数据分割为 8192 个数据点
-        peaks, _ = find_peaks(torch.abs(data), height=height)
-        start_index = peaks[-1] - 8192
-        end_index = peaks[-1]
-        
-        data = data[start_index-100:end_index-100]
-        # 最后再归一化
-        data = self.normalize(data)
-
-        return data      
-
-    def _noise(self, data, noise_level):
-        # 首先将 data 经过 IFFT 变换得到时域信号
-        fid = torch.fft.ifft(data)
-        # 生成高斯噪声
-        noise = torch.normal(mean=0, std=torch.sqrt(torch.tensor(2.0))/2, size=(len(fid),2)).to(torch.complex64)
-        noise = noise[:, 0]
-        # 将噪声加到时域信号中
-        fid = fid + noise_level * noise
-        # 最后再进行 FFT 变换得到频域信号
-        noised_data = torch.fft.fft(fid)
-        # 归一化到 [-1, 1]
-        noised_data = self.normalize(noised_data)
-        
-        return noised_data
-    
-    def normalize(self, data):
-        # 对数据进行归一化
-        data.real = data.real / torch.max(torch.abs(data.real))
-        data.imag = data.imag / torch.max(torch.abs(data.imag))
-        
-        return data
-            
     @property
     def raw_dir(self):
         return os.path.join(self.root, "raw")
@@ -139,44 +44,127 @@ class SABREDataset(Dataset):
         return os.path.join(self.root, "processed")
     
     @property
-    def processed_file_names(self):
-        return "nmr_data.pt"
+    def processed_file_name(self):
+        return "nmr_data.npy"
     
     @property
-    def processed_paths(self):
-        return os.path.join(self.processed_dir, self.processed_file_names)
+    def processed_path(self):
+        return os.path.join(self.processed_dir, self.processed_file_name)
     
+    def __len__(self):
+        return len(self.data)
     
-class SABRETestDataset(SABREDataset):
-    def __init__(self, root):
-        super().__init__(root)
+    def _load_csv_data(self, file_path):
+        r"""加载并处理单个CSV文件"""
+        data = pd.read_csv(file_path, header=None, delim_whitespace=True).iloc[:, 1:].values
+        return np.complex128(data[:, 0] + 1j * data[:, 1])
         
+    def _split_data(self, data, height=0.008):
+        r"""分割数据为固定长度的片段"""
+        data = self._normalize(data)
+        peaks, _ = find_peaks(np.abs(data), height=height)
+        
+        if len(peaks) == 0:
+            raise ValueError("No peaks found in the data")
+            
+        start_index = peaks[-1] - 8192
+        end_index = peaks[-1]
+        data = data[start_index-100:end_index-100]
+        return self._normalize(data)
+    
+    def _add_noise(self, data, noise_level):
+        r"""向数据添加噪声"""
+        fid = np.fft.ifft(data)
+        # 增加高斯噪声
+        noise = np.random.normal(
+            loc=0, 
+            scale=np.sqrt(2)/2, 
+            size=(len(fid),2)
+        ).view(np.complex128)
+        noise = noise[:,0]
+        fid = fid + noise_level * noise
+        
+        # 傅里叶变换
+        noised_data = np.fft.fft(fid)
+        
+        return self._normalize(noised_data)
+    
+    def _normalize(self, data: np.ndarray):
+        r"""归一化复数数据"""
+        max_factor = np.max(np.abs(data.real))
+        data.real = data.real / max_factor if max_factor != 0 else data.real
+        data.imag = data.imag / max_factor if max_factor != 0 else data.imag
+
+        return data
+    
     def process(self):
+        r"""处理原始数据并生成数据集"""
         data_list = []
         
-        # 读取原始数据
-        csv_dir = os.path.join(self.raw_dir)
-        csv_list = os.listdir(csv_dir)
-        csv_list = [file_name for file_name in csv_list if file_name.endswith('.csv')]
-
-        csv_list.sort() # 确保文件名按顺序排列
-                
-        # 处理数据
-        for csv in tqdm(csv_list, desc="Generating data"):
-            csv_path = os.path.join(csv_dir, csv)
-            csv_data = pd.read_csv(csv_path, header=None, delim_whitespace=True).iloc[:, 1:].values
-            
-            csv_data = torch.complex(
-                torch.tensor(csv_data[:, 0], dtype=torch.float32),
-                torch.tensor(csv_data[:, 1], dtype=torch.float32)
-            )
-            csv_data = self._split(csv_data, height=0.8)
-            
-            data = NMRData(raw=csv_data.real, label=csv_data.real)
-            data_list.append(data)
-            
-        torch.save(data_list, self.processed_paths)
+        # 加载所有CSV文件
+        csv_files = sorted(
+            f for f in os.listdir(self.raw_dir) 
+            if f.endswith('.csv')
+        )
         
-
+        csv_data = [
+            self._split_data(
+                self._load_csv_data(os.path.join(self.raw_dir, f))
+            ) for f in csv_files
+        ]
+        
+        # 生成带噪声的数据
+        for _ in tqdm(range(self.nums), desc="Generating training data"):
+            for clean_data in csv_data:
+                noise_level = np.random.uniform(0.001, 0.01)
+                label_data = clean_data.copy()
+                noisy_data = self._add_noise(label_data, noise_level)
+                
+                # data[:, 0] is noisy data, data[:, 1] is clean data
+                data = np.stack((noisy_data.real, label_data.real), axis=1)
+                
+                # save the raw data and label data to the list
+                data_list.append(data)
+        
+        # 保存处理后的数据集
+        np.save(self.processed_path, data_list, allow_pickle=True)
+           
+    def plot_data(self, index):
+        r"""可视化数据"""
+        fig, ax = plt.subplots(2, 1, figsize=(10, 6))
+        ax[0].plot(self.raw[index].numpy().real)
+        ax[0].set_title("Raw Data")
+        ax[1].plot(self.label[index].numpy().real)
+        ax[1].set_title("Label Data")
+        plt.show()
+  
+  
+class SABRETestDataset(SABREDataset):
+    r"""SABRE测试数据集"""
+    def __init__(self, root):
+        super().__init__(root, nums=0)  # nums=0 表示不生成额外数据
+    
+    def process(self):
+        r"""处理测试数据"""
+        data_list = []
+        
+        csv_files = sorted(
+            f for f in os.listdir(self.raw_dir) 
+            if f.endswith('.csv')
+        )
+        
+        for file in tqdm(csv_files, desc="Processing test data"):
+            file_path = os.path.join(self.raw_dir, file)
+            clean_data = self._load_csv_data(file_path)
+            clean_data = self._split_data(clean_data, height=0.8)
+            
+            # data[:, 0] is noisy data, data[:, 1] is clean data
+            data = np.stack((clean_data, clean_data), axis=1)
+            
+            # save the raw data and label data to the list
+            data_list.append(data)
+        
+        # 保存处理后的数据集
+        np.save(self.processed_path, data_list, allow_pickle=True)  
     
     

@@ -1,5 +1,6 @@
 import os
 import re
+import argparse
 
 import torch
 import pytorch_lightning as pl
@@ -8,44 +9,166 @@ from pytorch_lightning.strategies import SingleDeviceStrategy
 from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 
-from sabre_data import SabreDataModule, SabreTestModule
+from utils.splitter import LoadFromFile, number, save_argparse
+from sabre_data import SabreDataModule, SabreTestDataModule
 from sabre_model import SabreModel
 
-from argparse import Namespace
 from datetime import datetime
 
 
-class Hyperparameters(Namespace):
-    def __init__(self):
-        # Initialize default values
-        super().__init__(
-            load_model=None,
-            loss_type="mae",
-            num_epochs=50,
-            lr_warmup_steps=10000,
-            lr=1.e-03,
-            lr_min=1.e-07,
-            lr_cosine_length=10000,
-            weight_decay=1.e-03,
-            early_stopping_patience=15,
-        
-            reload=1,
-            batch_size=32,
-            inference_batch_size=32,
-            dataset_root='./data',
-            test_root='./test',
-            train_size=None,
-            val_size=None,
-            num_workers=16,
-          
-            num_nodes=1,
-            precision=32,
-            log_dir="./log",
-            seed=42,
-            accelerator="gpu",
-            save_interval=1,
-            task="train"
+def get_args():
+    parser = argparse.ArgumentParser(description="Training")
+    parser.add_argument(
+        "--load-model",
+        default=None,
+        type=str,
+        help="Restart training using a model checkpoint",
+    )  # keep first
+    parser.add_argument(
+        "--conf",
+        "-c",
+        type=open,
+        action=LoadFromFile,
+        help="Configuration yaml file",
+    )  # keep second
+    # training settings
+    parser.add_argument(
+        "--num-epochs", default=50, type=int, help="number of epochs"
+    )
+    parser.add_argument(
+        "--loss-type",
+        default="mse",
+        type=str,
+        choices=["mse", "rmse", "nmse", "mae", "huber", "log_cosh"],
+        help="loss function",
+    )
+    parser.add_argument(
+        "--lr-warmup-steps",
+        type=int,
+        default=0,
+        help="How many steps to warm-up over. Defaults to 0 for no warm-up",
+    )
+    parser.add_argument("--lr", default=1e-3, type=float, help="learning rate")
+    parser.add_argument(
+        "--lr-patience",
+        type=int,
+        default=5,
+        help="Patience for lr-schedule. Patience per eval-interval of validation",
+    )
+    parser.add_argument(
+        "--lr-min",
+        type=float,
+        default=1e-6,
+        help="Minimum learning rate before early stop",
+    )
+    parser.add_argument(
+        "--lr-factor",
+        type=float,
+        default=0.8,
+        help="Minimum learning rate before early stop",
+    )
+    parser.add_argument(
+        "--weight-decay", type=float, default=1e-4, help="Weight decay strength"
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=20,
+        help="Stop training after this many epochs without improvement",
+    )
+
+    parser.add_argument(
+        "--train-root", default='./data/', type=str, help="Train Dataset Root"
+    )
+    parser.add_argument(
+        "--test-root", default='./test/', type=str, help="Test Dataset Root"
+    )
+    
+    # dataloader specific
+    parser.add_argument(
+        "--reload",
+        type=int,
+        default=1,
+        help="Reload dataloaders every n epoch",
+    )
+    parser.add_argument(
+        "--batch-size", default=32, type=int, help="batch size"
+    )
+    parser.add_argument(
+        "--inference-batch-size",
+        default=None,
+        type=int,
+        help="Batchsize for validation and tests.",
+    )
+    parser.add_argument(
+        "--splits",
+        default=None,
+        help="Npz with splits idx_train, idx_val, idx_test",
+    )
+    parser.add_argument(
+        "--train-size",
+        type=number,
+        default=0.9,
+        help="Percentage/number of samples in training set (None to use all remaining samples)",
+    )
+    parser.add_argument(
+        "--val-size",
+        type=number,
+        default=0.1,
+        help="Percentage/number of samples in validation set (None to use all remaining samples)",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=8,
+        help="Number of workers for data prefetch",
+    )
+    parser.add_argument(
+        "--precision",
+        type=int,
+        default=32,
+        choices=[16, 32],
+        help="Floating point precision",
+    )
+    parser.add_argument(
+        "--log-dir", type=str, default="./logs", help="Log directory"
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default="train",
+        choices=["train", "inference"],
+        help="Train or inference",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed (default: 42)"
+    )
+    parser.add_argument(
+        "--num-nodes", type=int, default=1, help="Number of nodes"
+    )
+    parser.add_argument(
+        "--accelerator",
+        default="gpu",
+        help='Supports passing different accelerator types ("cpu", "gpu", "tpu", "ipu", "auto")',
+    )
+    parser.add_argument(
+        "--save-interval",
+        type=int,
+        default=1,
+        help="Save interval, one save per n epochs (default: 10)",
+    )
+
+    args = parser.parse_args()
+
+    if args.inference_batch_size is None:
+        args.inference_batch_size = args.batch_size
+
+    if args.task == "train":
+        save_argparse(
+            args, os.path.join(args.log_dir, "input.yaml"), exclude=["conf"]
         )
+
+    return args
 
 
 def auto_start(args):
@@ -86,7 +209,7 @@ def auto_start(args):
 
 
 def main():
-    args = Hyperparameters()
+    args = get_args()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Set seed
@@ -164,7 +287,7 @@ def main():
         )
         
         # 创建测试用例
-        test_data = SabreTestModule(root=args.test_root)
+        test_data = SabreTestDataModule(args)
         
         # 读取测试模型
         ckpt = torch.load(args.load_model, map_location="cpu")
