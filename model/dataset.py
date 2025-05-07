@@ -56,7 +56,7 @@ class SABREDataset(Dataset):
     
     def _load_csv_data(self, file_path):
         r"""加载并处理单个CSV文件"""
-        data = pd.read_csv(file_path, header=None, delim_whitespace=True).iloc[:, 1:].values
+        data = pd.read_csv(file_path, header=None, sep='\s+').iloc[:, 1:].values
         return np.complex128(data[:, 0] + 1j * data[:, 1])
         
     def _split_data(self, data, height=0.008):

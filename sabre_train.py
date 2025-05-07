@@ -78,10 +78,10 @@ def get_args():
     )
 
     parser.add_argument(
-        "--train-root", default='./data/', type=str, help="Train Dataset Root"
+        "--train-root", default='./data/train', type=str, help="Train Dataset Root"
     )
     parser.add_argument(
-        "--test-root", default='./test/', type=str, help="Test Dataset Root"
+        "--test-root", default='./data/test', type=str, help="Test Dataset Root"
     )
     
     # dataloader specific
