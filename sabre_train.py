@@ -120,7 +120,7 @@ def get_args():
     parser.add_argument(
         "--num-workers",
         type=int,
-        default=8,
+        default=6,
         help="Number of workers for data prefetch",
     )
     parser.add_argument(

@@ -80,7 +80,8 @@ class SabreDataModule(LightningDataModule):
             batch_size=batch_size,
             shuffle=shuffle,
             num_workers=self.hparams["num_workers"],
-            pin_memory=True,
+            persistent_workers=True,
+            pin_memory=False,
             drop_last=False,
         )
         
