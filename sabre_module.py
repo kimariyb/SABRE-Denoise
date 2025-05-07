@@ -1,5 +1,6 @@
 import os
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
@@ -144,8 +145,8 @@ class SabreModel(LightningModule):
         pred_y = pred[0, 0, :].reshape(-1)
         label_y = label[0, 0, :].reshape(-1)
         
-        # 如果 pred_y < 1e-4, 则设为 0
-        pred_y[pred_y < 1e-4] = 0
+        # 如果 |pred_y| < 1e-4, 则设为 0.0
+        pred_y[np.abs(pred_y) < 1e-4] = 0.0
         
         # 绘制上下两个谱图
         fig, axs = plt.subplots(2, 1, figsize=(10, 10))
@@ -156,17 +157,22 @@ class SabreModel(LightningModule):
         axs[1].set_title("Label")
 
         # 保存图片
-        save_name = "spectra.png"
+        save_name = "denoised_spectra_0.png"
         
+        # 保存路径
+        save_dir = os.path.join(self.hparams.log_dir, "spectra")
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+            
         # 自动处理图片名字
-        files = os.listdir(os.path.join(self.hparams.log_dir, "metrics"))
+        files = os.listdir(save_dir)
         count = 1
 
         while save_name in files:
-            save_name = f"spectra_{count}.png"
+            save_name = f"denoised_spectra_{count}.png"
             count += 1
 
-        fig.savefig(os.path.join(self.hparams.log_dir, "metrics", save_name))
+        fig.savefig(os.path.join(save_dir, save_name))
 
 
 

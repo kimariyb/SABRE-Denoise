@@ -137,8 +137,8 @@ def get_args():
         "--task",
         type=str,
         default="train",
-        choices=["train", "inference"],
-        help="Train or inference",
+        choices=["train", "test"],
+        help="Train or test",
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="random seed (default: 42)"
