@@ -3,7 +3,7 @@ import os
 from torch.utils.data import Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 
-from ResNet.dataset import SABREDataset, SABRETestDataset
+from model.dataset import SABREDataset, SABRETestDataset
 from utils.splitter import make_splits
 
 

@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
 
+
 def mse_loss(input, target):
-    """
+    r"""
     Mean Squared Error Loss
     
     Parameters
@@ -19,8 +20,9 @@ def mse_loss(input, target):
     """
     return F.mse_loss(input, target)
 
+
 def mae_loss(input, target):
-    """
+    r"""
     Mean Absolute Error Loss
     
     Parameters
@@ -37,8 +39,9 @@ def mae_loss(input, target):
     """
     return F.l1_loss(input, target)
 
+
 def nmse_loss(input, target):    
-    """
+    r"""
     Normalized Mean Squared Error Loss
     
     Parameters
@@ -54,9 +57,10 @@ def nmse_loss(input, target):
         The normalized mean squared error loss between the input and target tensors. 
     """
     return torch.mean((input - target) ** 2) / torch.mean(target ** 2)  
+   
     
 def rmse_loss(input, target):
-    """
+    r"""
     Root Mean Squared Error Loss
     
     Parameters
@@ -73,8 +77,9 @@ def rmse_loss(input, target):
     """
     return torch.sqrt(F.mse_loss(input, target))
 
+
 def huber_loss(input, target, delta=1.0):
-    """
+    r"""
     Huber Loss
     
     Parameters
@@ -93,8 +98,9 @@ def huber_loss(input, target, delta=1.0):
     """
     return F.smooth_l1_loss(input, target, beta=delta)
 
+
 def log_cosh_loss(input, target):
-    """
+    r"""
     Log-Cosh Loss
     
     Parameters

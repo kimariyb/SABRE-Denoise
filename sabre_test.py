@@ -1,4 +1,4 @@
-from ResNet.dataset import SABREDataset, SABRETestDataset
+from model.dataset import SABREDataset, SABRETestDataset
 
 
 if __name__ == '__main__':

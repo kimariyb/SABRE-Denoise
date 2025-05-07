@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
 from pytorch_lightning import LightningModule
-from ResNet.model import SabreNet
 
+from model.sabre import SabreNet
 from utils.losses import rmse_loss, nmse_loss, mse_loss, mae_loss, huber_loss, log_cosh_loss
 
 

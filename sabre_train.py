@@ -9,9 +9,9 @@ from pytorch_lightning.strategies import SingleDeviceStrategy
 from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 
-from utils.splitter import LoadFromFile, number, save_argparse
+from utils.args import LoadFromFile, number, save_argparse
 from sabre_data import SabreDataModule, SabreTestDataModule
-from sabre_model import SabreModel
+from sabre_module import SabreModel
 
 from datetime import datetime
 
@@ -270,7 +270,12 @@ def main():
 
         trainer.fit(model, datamodule=data, ckpt_path=args.load_model)
         
-        print(f"Training completed in {datetime.now() - start_time}")
+        # Print training time
+        print(
+            f"""
+            ############ Training time: {datetime.now() - start_time} ############
+            """
+        )
     
     elif args.task == "test":
         test_trainer = pl.Trainer(
