@@ -116,7 +116,7 @@ class SABREDataset(Dataset):
         # 生成带噪声的数据
         for _ in tqdm(range(self.nums), desc="Generating training data"):
             for clean_data in csv_data:
-                noise_level = np.random.uniform(0.001, 0.01)
+                noise_level = np.random.uniform(5e-4, 5e-3)
                 label_data = clean_data.copy()
                 noisy_data = self._add_noise(label_data, noise_level)
                 
@@ -165,7 +165,7 @@ class SABRETestDataset(SABREDataset):
         for file in tqdm(csv_files, desc="Processing test data"):
             file_path = os.path.join(self.raw_dir, file)
             clean_data = self._load_csv_data(file_path)
-            clean_data = self._split_data(clean_data, height=0.8)
+            clean_data = self._split_data(clean_data, height=0.7)
             
             # data[:, 0] is noisy data, data[:, 1] is clean data
             data = np.stack((clean_data.real, clean_data.real), axis=1)

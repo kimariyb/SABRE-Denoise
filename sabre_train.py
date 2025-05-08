@@ -76,7 +76,9 @@ def get_args():
         default=20,
         help="Stop training after this many epochs without improvement",
     )
-
+    parser.add_argument(
+        "--generate-nums", type=int, default=5000, help="Generate nums"
+    )
     parser.add_argument(
         "--train-root", default='./data/train', type=str, help="Train Dataset Root"
     )
@@ -301,6 +303,7 @@ def main():
 
         # 开始测试
         test_trainer.test(model=model, datamodule=test_data)
+
 
 if __name__ == "__main__":
     main()

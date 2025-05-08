@@ -18,7 +18,7 @@ class EncoderBlock(nn.Module):
                 kernel_size=3, stride=2, padding=1, bias=False
             ),
             nn.BatchNorm1d(num_features=out_channels),
-            nn.LeakyReLU(negative_slope=0.1, inplace=True)
+            nn.LeakyReLU(negative_slope=0.1)
         )       
         
     def forward(self, x):        
@@ -35,9 +35,12 @@ class DecoderBlock(nn.Module):
         super().__init__()
         self.skip_channels = skip_channels
         self.conv_transpose = nn.Sequential(
-            nn.ConvTranspose1d(in_channels=in_channels+skip_channels, out_channels=out_channels, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose1d(
+                in_channels=in_channels+skip_channels, 
+                out_channels=out_channels, kernel_size=3, 
+                stride=2, padding=1, output_padding=1),
             nn.BatchNorm1d(num_features=out_channels),
-            nn.LeakyReLU(negative_slope=0.1, inplace=True)
+            nn.LeakyReLU(negative_slope=0.1)
         )
         
     def forward(self, x, skip=None):
@@ -61,9 +64,9 @@ class SabreNet(nn.Module):
         ])
         
         self.bottleneck = nn.Sequential(
-            nn.Conv1d(in_channels=256, out_channels=512, kernel_size=1, stride=1, padding=0), # (256,256) -> (512,256)
+            nn.Conv1d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1), # (256,256) -> (512,256)
             nn.BatchNorm1d(num_features=512),
-            nn.LeakyReLU(negative_slope=0.1, inplace=True)
+            nn.LeakyReLU(negative_slope=0.1)
         )
         
         self.decoder = nn.ModuleList([
@@ -74,9 +77,10 @@ class SabreNet(nn.Module):
             DecoderBlock(in_channels=32, out_channels=16, skip_channels=16), # (32,4096) -> (16,8192)
         ])
         
+        # 3x3 conv to output the final image
         self.output = nn.Sequential(
-            nn.Conv1d(in_channels=16, out_channels=1, kernel_size=1, stride=1, padding=0), # (16,8192) -> (1,8192)
-            nn.LeakyReLU(negative_slope=0.1, inplace=True)
+            nn.Conv1d(in_channels=16, out_channels=1, kernel_size=3, padding=1), # (16,8192) -> (1,8192)
+            nn.LeakyReLU(negative_slope=0.1)
         )
         
         # Initialize weights

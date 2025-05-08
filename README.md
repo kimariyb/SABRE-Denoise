@@ -56,6 +56,10 @@ SABRE-Denoise/
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|-----|
 | `--lr` | float | 1e-3 | 基础学习率 |
+| `--lr-patience` | int | 5 | 学习率耐心值 |
+| `--lr-min` | float | 1e-6 | 最小学习率 |
+| `--lr-factor` | float | 0.8 | 学习率衰减因子 |
+| `--weight-decay` | float | 1e-4 | 权重衰减 |
 | `--batch-size` | int | 32 | 训练批次大小 |
 | `--epochs` | int | 50 | 训练总轮数 |
 | `--loss-type` | str | mae | 损失函数类型（MAE/MSE/Huber）|
@@ -72,14 +76,14 @@ SABRE-Denoise/
 
 ## 🛠 训练
 ```bash
-python sabre_train.py --lr 0.001 --batch-size 32 --epochs 50 --loss-type mse
+python sabre_train.py --lr 0.001 --batch-size 64 --epochs 50 --loss-type nmse --generate-num 7000
 ```
 
 训练完成后，模型权重将保存在 `logs/.../checkpoints` 目录下。
 
 ## 🧪 测试
 ```bash
-python sabre_train.py --task test
+python sabre_train.py  --lr 0.001 --batch-size 64 --epochs 50 --loss-type nmse --generate-num 7000 --task test
 ```
 
 测试结果将保存在 `logs/.../spectra` 目录下。

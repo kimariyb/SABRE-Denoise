@@ -39,7 +39,10 @@ class SabreDataModule(LightningDataModule):
         
     def prepare_dataset(self):  
         # Load dataset
-        self.dataset = SABREDataset(root=self.hparams["train_root"])
+        self.dataset = SABREDataset(
+            root=self.hparams["train_root"],
+            nums=self.hparams["generate_nums"],
+        )
         
         self.idx_train, self.idx_val = make_splits(
             dataset_len=len(self.dataset), 
