@@ -162,5 +162,5 @@ cython_debug/
 #.idea/
 data/
 checkpoints/
-
-
+CLAUDE.md
+paper/

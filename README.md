@@ -229,7 +229,7 @@ python inference.py      # 读取 inference/ 目录中的 CSV 文件
 
 ```bibtex
 @software{SABRE-Denoise,
-  author = {YuBin Xiong},
+  author = {YuBin Xiong, Yao Luo},
   title = {SABRE Signal Denoising Framework — Complex U-Net for NMR Denoising},
   year = {2024},
   publisher = {GitHub},
