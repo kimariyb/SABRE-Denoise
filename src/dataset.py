@@ -2,34 +2,45 @@ import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from baselines.utils import fft, ifft
 from torch.utils.data import Dataset
 from typing import Tuple, List
 from tqdm import tqdm
 
 
-def addNoise(spectra: np.ndarray, noise_level: float):
+def addNoise(spectra: np.ndarray, noise_level: float) -> np.ndarray:
     """
-    向频谱数据添加高斯白噪声
+    在 FID 域（时域）向复数频谱数据添加复数高斯白噪声。
 
-    参数:
-        spectra (np.ndarray): 输入的频谱数据，复数类型数组
-        noise_level (float): 噪声强度系数
+    噪声在实部和虚部各自独立添加，满足循环平稳性：
+        real_noise, imag_noise ~ N(0, (√2/2)²)
+    使得合并后复数噪声的模期望为 1，方差为 1。
 
-    返回:
-        np.ndarray: 添加噪声后的频谱数据
+    Parameters
+    ----------
+    spectra : np.ndarray
+        复数频谱数据，shape (N,)
+    noise_level : float
+        噪声强度（相对于 FID 最大模值的比例，> 0）
+
+    Returns
+    -------
+    np.ndarray
+        添加噪声后的复数频谱，shape 与输入相同
     """
-    # 输入验证
     if not isinstance(spectra, np.ndarray):
-        raise TypeError("spect must be a numpy array")
+        raise TypeError("spectra must be a numpy array")
     if not np.issubdtype(spectra.dtype, np.complexfloating):
-        raise TypeError("spect must be a complex array")
+        raise TypeError("spectra must be a complex array")
     if not isinstance(noise_level, (int, float)):
         raise TypeError("noise_level must be a number")
+    if noise_level <= 0:
+        raise ValueError("noise_level must be positive")
 
-    # spectra to fid
-    fid = np.fft.ifft(spectra)
+    fid = ifft(spectra)
 
-    # add gaussian noise
+    # 实部虚部独立采样，scale=√2/2 使得：
+    #   Var(real) = Var(imag) = 0.5 → E[|noise|²] = 1
     noise_real_imag = np.random.normal(
         loc=0,
         scale=np.sqrt(2) / 2,
@@ -37,70 +48,116 @@ def addNoise(spectra: np.ndarray, noise_level: float):
     )
     noise = (noise_real_imag[:, 0] + 1j * noise_real_imag[:, 1]).astype(fid.dtype)
 
-    fid = fid + noise_level * noise
+    fid_noisy = fid + noise_level * noise
 
-    return np.fft.fft(fid)
+    return fft(fid_noisy)
 
 
 def normalize(data: np.ndarray) -> Tuple[np.ndarray, float, float]:
-    # 类型检查：确保输入是复数类型数组
-    if not np.iscomplexobj(data):
-        raise TypeError("输入数据必须是复数类型的 numpy 数组")
-
-    # 获取实部和虚部
-    real = data.real
-    imag = data.imag
-
-    real_factor = np.max(np.abs(real))
-    imag_factor = np.max(np.abs(imag))
-
-    eps = 1e-10
-
-    # 归一化到 [-1, 1]
-    normalized_real = real / (real_factor + eps)
-    normalized_imag = imag / (imag_factor + eps)
-
-    # 重新组合数据
-    normalized_data = normalized_real + 1j * normalized_imag
-
-    return normalized_data, real_factor, imag_factor
-
-
-def generateNoiseSpectra(
-        spectra: np.ndarray, count: int = 1000, noise_range: Tuple[float, float] = (5e-4, 5e-3)
-    ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """
-    生成带噪声的频谱数据
+    对复数频谱的实部和虚部分别归一化到 [-1, 1]。
 
     Parameters
     ----------
-    spectra: np.ndarray
-        输入的频谱数据
-    count: int
-        生成噪声频谱的数量，默认为1000
-    noise_range: Tuple[float, float]
-        噪声范围
+    data : np.ndarray
+        复数频谱，shape (N,)
 
     Returns
     -------
-    Tuple[List[Tuple[np.ndarray, np.ndarray]]
-        包含噪声频谱和原始频谱的元组列表
+    normalized_data : np.ndarray
+        归一化后的复数频谱
+    real_factor : float
+        实部缩放因子（max|real|），用于反归一化
+    imag_factor : float
+        虚部缩放因子（max|imag|），用于反归一化
     """
-    # 参数验证
-    if spectra is None:
-        raise ValueError("spectra cannot be None")
+    if not isinstance(data, np.ndarray):
+        raise TypeError("data must be a numpy array")
+    if not np.iscomplexobj(data):
+        raise TypeError("data must be a complex numpy array")
+
+    eps = 1e-10
+    real_factor = float(np.max(np.abs(data.real)))
+    imag_factor = float(np.max(np.abs(data.imag)))
+
+    normalized_real = data.real / (real_factor + eps)
+    normalized_imag = data.imag / (imag_factor + eps)
+
+    return normalized_real + 1j * normalized_imag, real_factor, imag_factor
+
+
+def generateNoiseSpectra(
+    spectra: np.ndarray,
+    count: int = 1000,
+    noise_range: Tuple[float, float] = (5e-4, 5e-3),
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    生成带噪声的复数频谱数据集。
+
+    流程：
+        原始频谱
+          → normalize          → clean_normalized（作为 label）
+          → ifft               → FID
+          → 计算 fid_max        → 校准 noise_level 量纲
+          ×count：
+            → log-uniform 采样 noise_level
+            → addNoise(clean_normalized, noise_level × fid_max)
+            → normalize        → noisy_normalized（作为输入）
+            → 追加 (noisy_normalized, clean_normalized)
+
+    noise_level × fid_max 保证噪声强度是相对 FID 幅度的比例，
+    跨样本 SNR 含义一致。
+
+    Parameters
+    ----------
+    spectra : np.ndarray
+        输入的复数频谱，shape (N,)
+    count : int
+        生成数量，默认 1000
+    noise_range : Tuple[float, float]
+        相对噪声强度范围，须满足 0 < low < high
+
+    Returns
+    -------
+    List[Tuple[np.ndarray, np.ndarray]]
+        (带噪归一化频谱, 干净归一化频谱) 的元组列表
+    """
+    if not isinstance(spectra, np.ndarray):
+        raise TypeError("spectra must be a numpy array")
+    if not np.issubdtype(spectra.dtype, np.complexfloating):
+        raise TypeError("spectra must be a complex array")
     if not isinstance(count, int) or count <= 0:
         raise ValueError("count must be a positive integer")
+    if noise_range[0] <= 0 or noise_range[0] >= noise_range[1]:
+        raise ValueError("noise_range must satisfy 0 < low < high")
 
-    label_data = spectra.copy()
+    # 干净频谱归一化，作为固定 label
+    clean_normalized, _, _ = normalize(spectra)
+
+    # FID 最大模值：用于将相对 noise_level 换算为绝对噪声幅度
+    # 在归一化后的频谱上计算，保证与 addNoise 输入量纲一致
+    fid_max = float(np.max(np.abs(ifft(clean_normalized))))
+    if fid_max == 0:
+        raise ValueError("spectra is zero after normalization")
+
+    # 对数均匀分布的上下界
+    # 低噪声区间不会被高噪声区间稀释
+    log_low  = np.log(noise_range[0])
+    log_high = np.log(noise_range[1])
 
     data = []
     for _ in tqdm(range(count), desc="Generating noise spectra", total=count):
-        # 添加噪声
-        noise_spectra = addNoise(spectra, np.random.uniform(*noise_range))
-        # 归一化
-        normalized_data, _, _ = normalize(noise_spectra)
-        data.append((normalized_data, label_data))
+
+        # log-uniform 采样：每个数量级的样本密度相同
+        noise_level = float(np.exp(np.random.uniform(log_low, log_high)))
+
+        # addNoise 接收归一化频谱，noise_level × fid_max 还原为绝对幅度
+        noisy_spectra = addNoise(clean_normalized, noise_level * fid_max)
+
+        # 带噪频谱同样归一化，与 label 处理方式对称
+        noisy_normalized, _, _ = normalize(noisy_spectra)
+
+        data.append((noisy_normalized, clean_normalized.copy()))
 
     return data
 
@@ -310,7 +367,7 @@ class SABRETestDataset(Dataset):
 
 if __name__ == '__main__':
     # load data
-    spectra = loadSpectra('data/train/train1.csv')
+    spectra = loadSpectra('../data/train/train1.csv')
     print(spectra.shape)
     # split data
     split_data = splitSpectra(spectra, (41308, 49500))
@@ -318,7 +375,7 @@ if __name__ == '__main__':
     # normalize data
     normalized_data, _, _ = normalize(split_data)
     # generate noise
-    data = generateNoiseSpectra(normalized_data, 5,  (1e-4, 1e-2))
+    data = generateNoiseSpectra(normalized_data, 5,  (0.05, 1.5))
 
     # build dataset
     dataset = SABREDataset(data)
@@ -331,6 +388,6 @@ if __name__ == '__main__':
         print(SABREDataset.real2complex(x).shape)
 
     for i in range(len(dataset)):
-        dataset.plot(i)
-        # # # save data
-        # dataset.to_csv(i, f'./data/test/sim_{i + 1}.csv')
+        # dataset.plot(i)
+        # # save data
+        dataset.to_csv(i, f'../data/test/sim_{i + 1}.csv')

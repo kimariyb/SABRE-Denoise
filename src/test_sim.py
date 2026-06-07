@@ -8,13 +8,17 @@ import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
 from dataset import SABRETestDataset
-from models import SabreSDN
+from models.sabre import SabreSDN
+from baselines.utils import snrp, snr, rmse
 
 
 def inference(model, loader, is_saved: bool = False):
     model.eval()
 
     preds = []
+    snrs = []
+    snrps = []
+    rmses = []
 
     with torch.no_grad():
         for i, batch in enumerate(loader):
@@ -27,13 +31,24 @@ def inference(model, loader, is_saved: bool = False):
             pred = pred[:, 0, :] # 获取实部 [1, 8192]
             label = y[:, 0, :]
 
+            pred_1d = pred.squeeze()  # 把 [1,8192] → [8192]
+            label_1d = label.squeeze()
+            snrs.append(snr(pred_1d.numpy()))
+            snrps.append(snrp(pred_1d.numpy(), i=6600, j=6800))
+            rmses.append(rmse(label_1d.numpy(), pred_1d.numpy()))
+
             preds.append(pred.numpy())
             current_save_path =  f"./saved_{i + 1}.png" if is_saved else None
 
             # plot the spectra
             plot_spectra(pred, label, save_path=current_save_path)
 
-    return preds
+    # 计算平均指标
+    snrs_np = np.mean(snrs, dtype=np.float32)
+    snrps_np = np.mean(snrps, dtype=np.float32)
+    rmses_np = np.mean(rmses, dtype=np.float32)
+
+    return preds, snrs_np, snrps_np, rmses_np
 
 
 def plot_spectra(pred, label, save_path=None):
@@ -114,7 +129,11 @@ if __name__ == "__main__":
     print(f"成功加载模型: {MODEL_PATH}")
 
     # 推理
-    preds = inference(model, loader, True)
-    #
-    # print(preds)
+    _, snrs, snrps, rmses = inference(model, loader, True)
+    print(f'SNR: {snrs:.4f}, '
+          f'SNRP: {snrps:.4f}, '
+          f'RMSE: {rmses:.4f}')
+
+
+# SNR: 495.0712, SNRP: 3.2367, RMSE: 0.1618
 

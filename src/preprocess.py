@@ -55,5 +55,5 @@ if __name__ == '__main__':
     SAVE_DATA_PATH = '../data/train.npz'
 
     prepreocess(TRAIN_DATA_PATH, SAVE_DATA_PATH,
-                (41308, 49500), (1e-4, 1e-2), 20000)
+                (41308, 49500), (0.05, 1.5), 16000)
 

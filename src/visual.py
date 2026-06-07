@@ -39,8 +39,6 @@ def read_log(path: str) -> dict:
         'epoch': [],
         'train_loss': [],
         'val_loss': [],
-        'train_snr': [],
-        'val_snr': [],
     }
     with open(path, 'r') as f:
         reader = csv.DictReader(f)
@@ -48,8 +46,7 @@ def read_log(path: str) -> dict:
             data['epoch'].append(int(row['epoch']))
             data['train_loss'].append(float(row['train_loss']))
             data['val_loss'].append(float(row['val_loss']))
-            data['train_snr'].append(float(row['train_snr']))
-            data['val_snr'].append(float(row['val_snr']))
+
     return data
 
 
@@ -58,49 +55,27 @@ def plot_metrics(data: dict, save_path: str):
     epochs = data['epoch']
     epochs_label = [f'{e}' for e in epochs]
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    fig.subplots_adjust(hspace=0.08)
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # ── 上图: Loss ────────────────────────────────────────────────
     color_loss = '#1f77b4'
     color_val  = '#d62728'
 
-    ax1.plot(epochs, data['train_loss'], color=color_loss, label='Train Loss', marker='o', markersize=3)
-    ax1.plot(epochs, data['val_loss'],   color=color_val,  label='Val Loss',   marker='s', markersize=3)
-    ax1.set_ylabel('Loss', fontsize=13)
-    ax1.set_title('Training & Validation Loss', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
+    ax.plot(epochs, data['train_loss'], color=color_loss, label='Train Loss', marker='o', markersize=3)
+    ax.plot(epochs, data['val_loss'],   color=color_val,  label='Val Loss',   marker='s', markersize=3)
+    ax.set_ylabel('Loss', fontsize=13)
+    ax.set_title('Training & Validation Loss', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
     # 标出最佳验证损失
     best_idx = data['val_loss'].index(min(data['val_loss']))
-    ax1.annotate(f'Best: {data["val_loss"][best_idx]:.4f}',
+    ax.annotate(f'Best: {data["val_loss"][best_idx]:.4f}',
                  xy=(epochs[best_idx], data['val_loss'][best_idx]),
                  xytext=(10, -18), textcoords='offset points',
                  fontsize=10, color=color_val,
                  arrowprops=dict(arrowstyle='->', color=color_val, lw=1.2))
 
-    # ── 下图: SNR ────────────────────────────────────────────────
-    color_snr_tr = '#2ca02c'
-    color_snr_val = '#ff7f0e'
-
-    ax2.plot(epochs, data['train_snr'], color=color_snr_tr,  label='Train SNR (dB)', marker='o', markersize=3)
-    ax2.plot(epochs, data['val_snr'],   color=color_snr_val, label='Val SNR (dB)',   marker='s', markersize=3)
-    ax2.set_xlabel('Epoch', fontsize=13)
-    ax2.set_ylabel('SNR (dB)', fontsize=13)
-    ax2.set_title('Training & Validation SNR', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=11)
-    ax2.grid(True, alpha=0.3)
-    # 标出最佳验证 SNR
-    best_snr_idx = data['val_snr'].index(max(data['val_snr']))
-    ax2.annotate(f'Best: {data["val_snr"][best_snr_idx]:.2f} dB',
-                 xy=(epochs[best_snr_idx], data['val_snr'][best_snr_idx]),
-                 xytext=(10, 10), textcoords='offset points',
-                 fontsize=10, color=color_snr_val,
-                 arrowprops=dict(arrowstyle='->', color=color_snr_val, lw=1.2))
-
-    fig.suptitle('SABRE-Denoise Training History', fontsize=15, fontweight='bold', y=1.01)
     fig.tight_layout()
-    fig.savefig(save_path, dpi=200, bbox_inches='tight')
+    fig.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f'[✓] 图表已保存: {save_path}')
     plt.show()
 

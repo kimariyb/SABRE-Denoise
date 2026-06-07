@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
 from dataset import SABRETestDataset, loadSpectra, splitSpectra, normalize
-from models import SabreSDN
+from models.sabre import SabreSDN
 
 
 def inference(model, loader):
