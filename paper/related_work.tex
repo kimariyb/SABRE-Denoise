@@ -1,0 +1,321 @@
+% ==============================================================================
+% Chapter II — Related Work
+% SABRE-Denoise: Complex-Valued 1D U-Net for NMR Signal Denoising
+% Target: Journal of Magnetic Resonance
+% ==============================================================================
+
+\section{Related Work}
+\label{sec:related_work}
+
+SabreSDN sits at the intersection of four research threads: traditional NMR
+signal processing, general-purpose deep-learning denoising, complex-valued
+neural networks, and the emerging field of deep learning for NMR spectroscopy.
+We review each in turn and identify the gaps that motivate our work.
+
+\subsection{Traditional NMR Signal Processing for Denoising}
+\label{sec:rw_traditional}
+
+Signal-to-noise enhancement has been a central concern of NMR spectroscopy
+since its inception. The classical toolkit operates primarily through
+post-acquisition mathematical processing of the free induction decay (FID).
+
+\textbf{Window functions (apodization).}
+Multiplying the FID by a decaying window function---exponential, Gaussian,
+sine-bell, or Lorentz--Gauss---before Fourier transformation is the most
+widely used approach \cite{Ernst1987}. The exponential window (matched filter)
+is optimal for sensitivity enhancement when the natural line-width is known:
+it weights each time-domain point by $\exp(-\pi \cdot \text{LB} \cdot t)$,
+maximizing the signal-to-noise ratio when LB matches the intrinsic
+transverse relaxation rate $R_2^* = 1/(\pi \cdot \text{FWHM})$. However,
+this optimality comes at a cost: the matched filter broadens the line-width
+by exactly a factor of two (the ``sensitivity-resolution trade-off''), and
+a mismatched LB parameter---inevitable when a spectrum contains peaks of
+different line-widths---simultaneously degrades both sensitivity and
+resolution. Lorentz--Gauss transformation partially decouples this trade-off
+by combining Gaussian multiplication (resolution enhancement) with Lorentzian
+broadening (sensitivity enhancement), but at the expense of introducing two
+tunable parameters whose optimal values interact nonlinearly
+\cite{Lindon1980}.
+
+\textbf{Linear prediction and subspace methods.}
+Linear prediction extrapolates the FID beyond the acquisition window using
+an autoregressive model, effectively reducing truncation artifacts without
+the sensitivity penalty of apodization \cite{Barkhuijsen1985, Koehl1994}.
+Cadzow filtering \cite{Cadzow1988}, adapted to NMR by Hore and colleagues
+\cite{Hore2013}, constructs a Hankel matrix from the FID and applies
+singular value decomposition with rank truncation. This approach exploits
+the fact that the deterministic NMR signal (a sum of exponentially damped
+sinusoids) has a Hankel matrix of rank equal to the number of distinct
+frequencies, whereas additive white noise fills all singular values uniformly.
+Truncating to rank $r$ therefore suppresses noise while preserving signal
+structure. Despite its elegance, Cadzow filtering has two practical
+limitations: (1)~the signal rank $r$ is unknown \emph{a priori} and must
+be estimated or tuned---overestimating $r$ retains noise, while
+underestimating $r$ suppresses weak peaks; and (2)~SABRE-enhanced spectra
+with widely varying peak intensities challenge the low-rank assumption,
+as weak resonances may have singular values below the truncation threshold
+even when $r$ is chosen correctly.
+
+\textbf{Wavelet denoising.}
+Wavelet-based methods \cite{Antonijevic2006, Gomez2016} threshold wavelet
+coefficients in a transformed domain where signal and noise are more
+separable. Their performance hinges on selecting an appropriate wavelet
+basis and thresholding rule (hard vs.\ soft, universal vs.\ level-dependent).
+While adaptive threshold selection algorithms exist (e.g., SURE, BayesShrink),
+they operate on statistical criteria rather than on chemical knowledge of
+peak positions and shapes.
+
+\textbf{Common thread.}
+All traditional methods share a fundamental architecture: they process
+the NMR signal through a \emph{manually specified mathematical transform}
+with one or more free parameters that must be tuned by an expert user for
+each spectrum or dataset. They do not learn from data, and they encode
+only generic signal priors (smoothness, low rank, sparsity) rather than
+the specific spectral characteristics of a given chemical system under a
+given hyperpolarization protocol. SabreSDN, by contrast, \emph{learns} the
+denoising transformation from examples, and its architecture incorporates
+NMR-specific inductive biases (complex-algebraic constraints, multi-scale
+receptive fields, peak-region attention) that go beyond generic signal
+priors.
+
+\subsection{Deep Learning for Image and Signal Denoising}
+\label{sec:rw_dl_denoising}
+
+The past decade has seen deep convolutional neural networks (CNNs)
+revolutionize image denoising. Several architectural innovations from this
+literature directly inform our design.
+
+\textbf{U-Net.}
+Ronneberger et al.\ \cite{Ronneberger2015} introduced the U-Net for biomedical
+image segmentation. Its symmetric encoder--decoder structure with skip
+connections bridging corresponding resolution levels has proven remarkably
+effective for dense prediction tasks where the output shares the spatial
+structure of the input. The U-Net's inductive bias---local processing via
+convolution, multi-scale representation via progressive down-sampling and
+up-sampling, and fine-detail preservation via skip connections---maps
+naturally onto the NMR denoising problem, where the output spectrum must
+match the input in length and where both fine peak structure and broad
+baseline trends must be simultaneously preserved. Our SDNBlock adopts the
+U-Net backbone (Section~\ref{sec:architecture}) but makes it
+\emph{complex-valued} throughout, adds \emph{domain-specific attention},
+and replaces the bottleneck and skip connections with
+\emph{NMR-tailored alternatives}.
+
+\textbf{DnCNN and residual denoising.}
+Zhang et al.\ \cite{Zhang2017} proposed DnCNN, which popularized residual
+learning for denoising: rather than predicting the clean image directly,
+the network predicts the noise residual, and the denoised output is obtained
+by subtraction ($\hat{\mathbf{x}} = \mathbf{y} - \mathcal{R}(\mathbf{y})$).
+Batch normalization and residual connections enable training deeper networks
+(up to 17--20 layers) with stable gradient flow. Our global residual
+connection (Equation~\ref{eq:overall_residual}) follows this principle.
+However, DnCNN was designed for 2D natural images with real-valued pixels;
+its direct 1D adaptation lacks several NMR-specific features: complex-valued
+operations, multi-scale dilated convolutions tuned to NMR line-width ranges,
+and attention mechanisms that identify spectral peaks.
+
+\textbf{Beyond CNNs?}
+Recent work has explored Transformer-based architectures \cite{Liang2021}
+and diffusion probabilistic models \cite{Ho2020} for image denoising, often
+achieving state-of-the-art results on benchmark datasets. For 1D NMR spectra
+of length $N = 8192$, however, the $\mathcal{O}(N^2)$ complexity of
+self-attention makes vanilla Transformers computationally prohibitive for
+GPU training at batch sizes practical for denoising ($B \geq 128$).
+Efficient attention variants (Linformer, Performer) reduce this complexity
+but at the cost of introducing additional hyperparameters and losing the
+convolutional inductive bias of translation equivariance, which is a natural
+prior for spectra where a peak at one chemical shift should be processed
+identically to a peak at another. Diffusion models, while powerful, require
+iterative sampling (typically 50--1000 forward passes) for a single denoised
+output, which is incompatible with the real-time or near-real-time throughput
+expected in an NMR acquisition pipeline. For these reasons, we build on the
+mature and efficient U-Net backbone, enhanced with NMR-specific components.
+
+\subsection{Complex-Valued Neural Networks}
+\label{sec:rw_complex}
+
+The SabreSDN architecture depends critically on complex-valued convolutions.
+We trace this capability to the deep complex networks literature and
+distinguish our contribution from prior applications.
+
+\textbf{Foundations.}
+Trabelsi et al.\ \cite{Trabelsi2018} established the modern framework for
+deep complex networks, providing complex formulations of convolution,
+batch normalization, activation functions, and weight initialization.
+The complex convolution rule
+$\mathbf{W} * \mathbf{x} = (\mathbf{A} * \mathbf{x}_r - \mathbf{B} * \mathbf{x}_i) +
+j(\mathbf{B} * \mathbf{x}_r + \mathbf{A} * \mathbf{x}_i)$
+that we use in \texttt{CConv1d} (Section~\ref{sec:cconv}) is a direct
+implementation of their formulation. Our contribution is not the complex
+convolution rule itself, but rather its \emph{application to a domain where
+the complex structure is physically meaningful}: in NMR spectroscopy, the
+real and imaginary components are not arbitrary channels but are related
+through the Hilbert transform (the Kramers--Kronig relations for causal
+linear response). This means that the complex-algebraic weight-sharing
+constraint in \texttt{CConv1d} aligns with a genuine physical prior, whereas
+in the classification and speech tasks explored by Trabelsi et al., the
+complex representation is synthetically constructed from real-valued inputs
+and the constraint serves primarily as a parameter-efficiency regularizer.
+
+\textbf{MRI reconstruction.}
+Complex-valued U-Nets have been successfully applied to magnetic resonance
+image reconstruction from undersampled $k$-space data
+\cite{Virtue2017, Cole2021, Sriram2020}. These works operate in 2D (image
+domain) and exploit the fact that MRI data are natively complex-valued.
+Our scenario differs in two key respects: (1)~we operate on 1D frequency-domain
+spectra rather than 2D $k$-space data, meaning our spatial axis represents
+chemical shift rather than spatial position; and (2)~the absorption--dispersion
+relationship in high-resolution NMR is a strict Hilbert transform pair for
+Lorentzian lines, providing a stronger physical constraint than the general
+complex structure of MRI images. To our knowledge, SabreSDN is the first
+application of complex-valued deep learning to 1D NMR spectral denoising.
+
+\textbf{Why not just use real convolutions?}
+A skeptic might ask whether complex convolutions are necessary: an
+unconstrained two-channel real convolution can, in principle, approximate
+any complex-linear operation (the universal approximation property of neural
+networks guarantees this). The practical answer has two parts. First,
+\emph{sample efficiency}: by hard-coding the complex multiplication structure,
+\texttt{CConv1d} reduces the number of free parameters in each convolutional
+layer by a factor of 2 (each complex weight pair $[w_r, w_j]$ maps to four
+real convolution operations with shared parameters, vs.\ four independent
+real convolutions in the unconstrained case), and this reduction translates
+to lower sample complexity---the network needs fewer training examples to
+achieve the same generalization performance. This is particularly relevant
+in NMR, where the number of distinct clean spectra available for training
+may be limited (tens rather than thousands). Second, \emph{physical
+interpretability}: the complex-algebraic structure ensures that the
+absorption and dispersion channels are processed in a manner consistent
+with the physics of the NMR signal, which constrains the hypothesis space
+to physically plausible transformations and reduces the risk of learning
+spurious correlations that do not generalize.
+
+\subsection{Deep Learning for NMR Spectroscopy}
+\label{sec:rw_nmr_dl}
+
+The application of deep learning to NMR spectroscopy is a rapidly growing but
+still nascent field. Existing work clusters around three tasks:
+identification, quantification, and reconstruction---of which the first two
+have received substantially more attention.
+
+\textbf{Metabolite identification and peak picking.}
+NMRNet \cite{Le2019} and related architectures use CNNs to identify
+metabolites in complex biological mixtures from 1D $^1$H NMR spectra.
+DeepPicker \cite{Klukowski2020} and DEEP Picker \cite{Li2021} apply
+deep learning to the peak-picking problem, detecting resonance positions
+in crowded spectra. These methods operate at the \emph{analysis layer}:
+their input is a spectrum of sufficient quality that peaks are visually
+(or at least statistically) discernible, and their output is a higher-level
+chemical interpretation (compound identity, peak list).
+
+\textbf{Signal enhancement and reconstruction.}
+Closer to our work, several groups have explored deep learning for NMR signal
+enhancement. Non-uniform sampling (NUS) reconstruction using deep learning
+\cite{Hyberts2012, Qu2015, Hansen2019} learns a mapping from sparsely
+sampled FIDs to fully sampled spectra, reducing acquisition time rather
+than suppressing noise per se. Deep neural networks have been applied to
+virtual decoupling \cite{Karunanithy2021} and to the removal of experimental
+artifacts \cite{Cobas2024}. These works demonstrate that deep learning can
+learn meaningful transformations of NMR data, but they address different
+noise or artifact sources than the broadband thermal and instrumental noise
+that SabreSDN targets.
+
+\textbf{The gap.}
+To our knowledge, no prior work proposes a \emph{dedicated denoising
+architecture for SABRE-hyperpolarized NMR spectra} that operates directly
+in the complex domain, incorporates multi-scale receptive fields tuned to
+the range of NMR line-widths, and uses a composite loss function that
+prioritizes the spectral regions relevant to quantitative analysis.
+SabreSDN fills this gap at the \emph{signal recovery layer}---downstream
+of acquisition but upstream of any chemical analysis. If successful, it
+provides a drop-in preprocessing module that can improve the input quality
+for all downstream tasks (peak picking, integration, metabolomics, and
+quantification) without modifying those downstream pipelines.
+
+\subsection{Attention Mechanisms in Deep Learning}
+\label{sec:rw_attention}
+
+Attention mechanisms enable neural networks to selectively emphasize
+informative features while suppressing irrelevant ones. Their adoption
+in computer vision has progressed from channel-wise recalibration to
+sophisticated spatial and hybrid schemes.
+
+\textbf{Channel attention.}
+Hu et al.\ \cite{Hu2018} introduced the Squeeze-and-Excitation (SE) block,
+which compresses global spatial information into a channel descriptor via
+average pooling, then learns channel-wise scaling factors through a
+bottleneck fully-connected network. This mechanism has been shown to
+improve representation quality across a wide range of architectures at
+negligible computational cost. Our Channel Attention module
+(Section~\ref{sec:cbam}) is a direct 1D adaptation of the SE design.
+
+\textbf{Spatial and spectral attention.}
+Woo et al.\ \cite{Woo2018} proposed the Convolutional Block Attention Module
+(CBAM), which augments channel attention with a spatial attention branch
+that identifies informative spatial regions via a small-kernel convolution.
+Our \texttt{CBAM1d} is a dimension-reduced adaptation: the original
+$7 \times 7$ 2D spatial convolution becomes a $7 \times 1$ 1D convolution
+along the spectral axis, transforming the semantic meaning from
+``which image region is salient'' to ``which chemical shift is occupied by
+a peak.'' This reinterpretation is not merely a dimensionality reduction;
+it encodes the prior that \emph{peak position is the primary axis of
+variation in a 1D spectrum}, in contrast to natural images where
+information is distributed across two spatial dimensions.
+
+\textbf{Why CBAM and not self-attention?}
+Self-attention \cite{Vaswani2017} and its vision variants \cite{Dosovitskiy2021}
+have achieved dominant performance in many domains, raising the natural
+question of why we retain a convolutional attention module rather than
+adopting a Transformer backbone. Our rationale is threefold:
+(1)~\textbf{Computational tractability}: the $\mathcal{O}(N^2)$ complexity of
+self-attention over $N = 8192$ spectral points requires
+${\sim}67 \times 10^6$ pairwise interactions per attention head, per layer,
+making training at batch sizes of 128--256 infeasible on a single laboratory
+GPU.
+(2)~\textbf{Inductive bias alignment}: NMR denoising is fundamentally a
+\emph{local-to-local} mapping---the clean signal at chemical shift $\delta$
+depends overwhelmingly on the noisy signal at $\delta$ and its immediate
+neighborhood, not on distant spectral regions where unrelated peaks reside.
+Convolutional operations with their built-in locality and translation
+equivariance are a near-perfect match for this structure, whereas global
+self-attention introduces unnecessary degrees of freedom that the network
+must learn to ignore.
+(3)~\textbf{Channel attention already provides global context}: the global
+average pooling in the Channel Attention branch aggregates information from
+the entire spectrum into a per-channel descriptor, giving the network a
+mechanism to condition local processing on global spectral statistics
+(e.g., overall noise level, presence or absence of a dominant solvent peak)
+without the quadratic cost of explicit pairwise attention.
+
+\subsection{Positioning of SabreSDN}
+\label{sec:rw_positioning}
+
+Figure~\ref{fig:positioning} schematically positions SabreSDN within the
+NMR deep learning landscape. The horizontal axis spans from generic signal
+processing to NMR-specific methodology; the vertical axis spans from
+analysis-layer tasks (identification, classification) to signal-layer tasks
+(denoising, reconstruction, artifact removal).
+
+\begin{figure}[t]
+    \centering
+    % \includegraphics[width=0.8\columnwidth]{figures/positioning.pdf}
+    \caption{[TODO] Schematic positioning of SabreSDN in the NMR deep learning
+             landscape. Horizontal axis: generic $\to$ NMR-specific methodology.
+             Vertical axis: signal-recovery $\to$ chemical-analysis tasks.
+             SabreSDN occupies the NMR-specific $\times$ signal-recovery
+             quadrant.}
+    \label{fig:positioning}
+\end{figure}
+
+SabreSDN occupies the \textbf{NMR-specific $\times$ signal-recovery} quadrant:
+it is built on a generic deep learning backbone (U-Net) but customized at
+every level to the physics and analytical priorities of SABRE NMR
+spectroscopy---complex convolutions for absorption--dispersion coupling,
+multi-scale bottleneck for heterogeneous line-widths, peak-focused attention
+for quantitative fidelity, and an asymmetric loss function that prioritizes
+the spectral regions that chemists actually care about.
+
+In summary, SabreSDN draws on established ideas from each of the four
+research threads reviewed above, but their synthesis into a single
+architecture designed \emph{from first principles} for 1D complex NMR
+spectral denoising is, to our knowledge, novel.

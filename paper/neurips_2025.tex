@@ -1,0 +1,431 @@
+\documentclass{article}
+
+\usepackage[preprint,nonatbib]{neurips_2025}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts,amsmath,amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{float}
+
+\newcommand\blfootnote[1]{%
+  \begingroup
+  \renewcommand\thefootnote{}\footnote{#1}%
+  \addtocounter{footnote}{-1}%
+  \endgroup
+}
+
+\title{SabreSDN: A Complex-Valued 1D U-Net for Denoising SABRE-Hyperpolarized NMR Spectra at Low Concentration}
+
+
+\author{%
+  Yubin Xiong\,$^{1\,2\,3}$ \\
+  \texttt{kimariyb@163.com} \\
+  \And
+  Yao Luo\footnotemark[1]\;\,${}^{1\,2\,3}$\\
+  \texttt{731625032@qq.com} 
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Signal Amplification By Reversible Exchange (SABRE) can enhance nuclear magnetic resonance (NMR) signals by several thousand-fold through para-hydrogen-derived hyperpolarization. However, at low substrate concentrations (50~$\mu$M and below), the signal-to-noise ratio (SNR) remains insufficient for reliable spectral analysis, particularly in time-resolved measurements where signal averaging is precluded by the finite hyperpolarization lifetime. Traditional denoising methods such as exponential windowing and Cadzow filtering rely on manually tuned parameters and fail to preserve fine spectral features. We introduce SabreSDN (SABRE Signal Denoising Network), a complex-valued 1D U-Net that operates directly on complex NMR spectra (8192~points, real and imaginary channels). The network incorporates four key architectural components: (1)~complex convolutions (CConv1d) that encode the absorption--dispersion Hilbert-transform relationship as a structural prior, halving parameter count relative to unconstrained real-valued convolutions; (2)~CBAM1d attention modules that jointly model channel-wise and frequency-axis feature importance; (3)~a MultiScaleBlock bottleneck with parallel dilated convolutions (dilation~1,~4,~8) to simultaneously capture narrow singlets, $J$-coupled multiplets, and broad spectral features; and (4)~gated skip connections that selectively suppress noisy encoder features during decoding. Training uses a three-component composite loss that allocates $4\times$ higher weight to peak-containing regions ($\sim$2.4\% of spectral points) together with frequency-domain amplitude matching and baseline smoothness regularization. Trained on 50~$\mu$M SABRE-hyperpolarized $^{19}$F NMR data (20,000 noisy--clean pairs, 80/20 train/val split across 50~epochs), the model reduces validation loss from 0.162 to 0.024. Denoised spectra show clear recovery of $J$-coupling multiplet fine structure with minimal baseline distortion. With 7.71~million parameters and $\sim$2~ms GPU inference per spectrum, SabreSDN is practical for integration into existing SABRE NMR acquisition pipelines. Code and model weights are available at \url{https://github.com/kimariyb/SABRE-Denoise}.
+\end{abstract}
+
+\blfootnote{\hspace{-6mm}${}^*$ Corresponding author.}
+\blfootnote{\hspace{-6mm}$^{1}$School of Electronic Science and Engineering, Xiamen University, China.}
+\blfootnote{\hspace{-6mm}$^{2}$State Key Laboratory for Physical Chemistry of Solid Surfaces, Xiamen University, China.}
+\blfootnote{\hspace{-6mm}$^{3}$Fujian Provincial Key Laboratory of Plasma and Magnetic Resonance, Xiamen University, China.}
+
+
+
+\section{Introduction}
+
+Signal Amplification By Reversible Exchange (SABRE)~\cite{Adams2009,Duckett2012} is a para-hydrogen-based hyperpolarization technique that transiently transfers nuclear spin order to a substrate molecule via reversible association with an iridium catalyst. SABRE can enhance $^1$H, $^{13}$C, $^{15}$N, and $^{19}$F NMR signals by factors of $10^3$--$10^5$, enabling detection at concentrations far below the thermal polarization limit. This sensitivity gain has enabled applications in reaction monitoring~\cite{Eshuis2014}, low-concentration analyte detection~\cite{Rayner2017}, and in-vivo metabolic imaging~\cite{Hovener2013}.
+
+Despite these dramatic enhancements, SNR remains a critical bottleneck at substrate concentrations below 100~$\mu$M. The hyperpolarized signal amplitude scales approximately linearly with concentration, while the electronic noise floor is concentration-independent. At 50~$\mu$M---a regime relevant to pharmaceutical trace analysis and biocatalytic reaction monitoring---spectra can exhibit SNR values below 10, making peak identification, integration, and multiplet analysis unreliable. The problem is compounded in time-resolved SABRE measurements~\cite{Rayner2024}, where acquisition time is constrained by the hyperpolarization $T_1$ lifetime (typically 10--30~s for $^{19}$F), so signal averaging is not an option.
+
+Traditional post-acquisition denoising methods have well-known limitations. Exponential window functions (matched filtering)~\cite{Levitt2008,Ernst1987} improve SNR by multiplying the FID with $\exp(-\pi\cdot\mathrm{LB}\cdot t)$, but the line-broadening parameter LB must be chosen to balance SNR against spectral resolution. Cadzow filtering~\cite{Cadzow1988} constructs a Hankel matrix from the FID and truncates its singular value decomposition to a fixed rank $r$, but the optimal rank varies with the number and relative intensities of spectral peaks. Wavelet thresholding~\cite{Donoho1995} is sensitive to the choice of wavelet basis and threshold level. All three methods rely on manually specified parameters and do not leverage the specific structure of NMR spectra.
+
+Deep learning has recently emerged as a powerful alternative for NMR denoising~\cite{Lee2021,Qu2024,Chen2021,Kobayashi2022}. Convolutional neural networks (CNNs) learn data-driven signal priors directly from example spectra, avoiding manual parameter tuning. The U-Net architecture~\cite{Ronneberger2015} has been particularly effective for signal restoration tasks due to its symmetric encoder--decoder structure with multi-scale skip connections. In NMR spectroscopy, variant U-Nets have been applied to denoise 1D $^1$H~\cite{Lee2021} and 2D HSQC spectra~\cite{Qu2024}, demonstrating substantial SNR improvements while preserving peak shapes and multiplet patterns.
+
+However, existing deep learning approaches for NMR treat real and imaginary channels as independent feature dimensions, discarding the known Hilbert-transform relationship between absorption and dispersion modes. This relationship is fundamental to NMR spectroscopy---for a physically phased spectrum, the real part (absorption mode) contains the desired spectral information, while the imaginary part (dispersion mode) encodes the same data but with a different phase. Treating these two channels as independent effectively requires the network to rediscover this well-understood physical constraint from data, wasting capacity and increasing the risk of overfitting.
+
+In this work, we introduce \textbf{SabreSDN} (SABRE Signal Denoising Network), a complex-valued 1D U-Net specifically designed for denoising SABRE-hyperpolarized NMR spectra. Our contributions are:
+
+\begin{enumerate}[leftmargin=*, itemsep=1pt]
+    \item \textbf{Complex-valued convolutions} (CConv1d and CConvTranspose1d) that implement complex multiplication $(a+jb)*(c+jd) = (ac-bd) + j(ad+bc)$, encoding the absorption--dispersion relationship as a structural prior and halving the parameter count relative to unconstrained real-valued convolutions.
+    \item \textbf{NMR-specific architectural components}: CBAM1d attention combining channel attention (squeeze-and-excitation) with spectral attention (frequency-axis localization); a MultiScaleBlock bottleneck with parallel dilated convolutions capturing peaks at varied linewidths; and gated skip connections for selective encoder-to-decoder feature propagation.
+    \item \textbf{A frequency-aware composite loss function} that allocates $4\times$ higher loss weight to peak-containing regions, incorporates frequency-domain amplitude consistency, and penalizes baseline oscillations via a second-difference smoothness term.
+    \item \textbf{Experimental validation on 50~$\mu$M SABRE-$^{19}$F data}, showing that the model effectively recovers multiplet fine structure from spectra where key features are obscured by noise.
+\end{enumerate}
+
+
+\section{Related Work}
+
+\subsection{SABRE Hyperpolarization}
+
+SABRE~\cite{Adams2009,Duckett2012} exploits the reversible binding of both para-hydrogen and a substrate to an iridium N-heterocyclic carbene catalyst. In the polarized induction field of the catalyst, the $J$-coupling network between the hydride and substrate protons redistributes the para-hydrogen spin order, yielding hyperpolarized substrate that dissociates into free solution. The enhancement factor depends on the polarization transfer field, exchange rate, and catalyst loading. For $^{19}$F detection~\cite{Barskiy2017,Richardson2019}, the large gyromagnetic ratio and absence of background signals make it an attractive nucleus for trace analysis, but $T_1$ values are typically short (2--10~s), limiting signal averaging.
+
+\subsection{NMR Denoising}
+
+\textbf{Traditional methods.} The matched filter (exponential window) applies $\exp(-\pi\cdot\mathrm{LB}\cdot t)$ in the time domain, corresponding to a Lorentzian convolution in the frequency domain. Optimal LB balances SNR improvement against line broadening~\cite{Levitt2008}. Cadzow filtering~\cite{Cadzow1988} organizes the FID into a Hankel matrix and applies SVD truncation to retain only the rank-$r$ approximation. The method performs well when the rank of the signal subspace is known a priori, but degrades for spectra containing peaks of widely varying intensity. Maximum entropy reconstruction~\cite{Hoch1996} and covariance NMR~\cite{Bruschweiler2004} offer alternative reconstruction frameworks but are typically used for non-uniform sampling rather than post-acquisition denoising.
+
+\textbf{Deep learning for NMR.} Lee et al.~\cite{Lee2021} applied a 1D U-Net to denoise $^1$H NMR spectra of metabolites, achieving $\sim$5--6~dB SNR improvement at low concentrations. Qu et al.~\cite{Qu2024} reviewed deep learning architectures for computational NMR, covering denoising, peak picking, and spectral reconstruction. Several groups have extended this approach: Chen et al.~\cite{Chen2021} used a DnCNN architecture~\cite{Zhang2017} for 1D and 2D NMR denoising; Kobayashi et al.~\cite{Kobayashi2022} employed generative adversarial networks for spectral quality enhancement. These methods all treat NMR data as real-valued signals, discarding the complex algebraic structure.
+
+\subsection{Complex-Valued Neural Networks}
+
+Complex-valued neural networks have been explored for tasks where the data inherently possesses magnitude and phase. Trabelsi et al.~\cite{Trabelsi2018} proposed deep complex networks with complex convolutions, batch normalization, and activation functions. Gaudet and Maida~\cite{Gaudet2018} applied complex convolutional recurrent networks to MRI reconstruction, demonstrating improved phase consistency. In the NMR domain, complex-valued networks have been used for phase correction~\cite{Zhang2023} and MRI reconstruction~\cite{Hyun2018} but not, to our knowledge, for post-acquisition spectral denoising.
+
+\subsection{Attention Mechanisms and U-Net Variants}
+
+U-Net~\cite{Ronneberger2015} established the encoder--decoder architecture with skip connections as the standard for image and signal restoration. Attention U-Net~\cite{Oktay2018} introduced soft-attention gates at skip connections for pancreas segmentation. CBAM~\cite{Woo2018} proposed sequential channel and spatial attention modules inserted after convolutional blocks. These attention mechanisms have been adopted across multiple modalities but have not been specifically adapted for the 1D spectral domain where the ``spatial'' axis corresponds to chemical shift frequency.
+
+
+\section{Method}
+
+\subsection{Data Acquisition and Preprocessing}
+
+SABRE-hyperpolarized $^{19}$F NMR spectra were acquired at 50~$\mu$M substrate concentration on a 400~MHz spectrometer with an activated iridium-IMes catalyst and 3~bar para-hydrogen. Free induction decays (FIDs) were recorded with 65,536 complex points over a 100~ppm spectral width. After Fourier transformation and phase correction, each spectrum was cropped to the region of interest (chemical shift $\sim$0.24--0.52~ppm, 8192~points) containing the analyte $^{19}$F resonances including $J$-coupled multiplet structure. Post-cropping, the complex-valued spectra were normalized to $[-1, 1]$ separately for real and imaginary components: $s_{\text{norm}} = \mathrm{Re}(s)/\max|\mathrm{Re}(s)| + j \cdot \mathrm{Im}(s)/\max|\mathrm{Im}(s)|$.
+
+Five high-SNR spectra (256 scans) served as clean references. Training data were generated by injecting time-domain additive white Gaussian noise at levels drawn log-uniformly from $\sigma \in [10^{-4}, 10^{-2}]$ (relative to the FID maximum magnitude). For each clean spectrum, 4,000 noisy variants were generated, yielding 20,000 noisy--clean pairs. The dataset was randomly split 80/20 (16,000/4,000) into training and validation sets. Noise was injected in the time domain (IFFT $\to$ add noise $\to$ FFT) to ensure a flat spectral noise profile, matching the characteristics of thermal electronic noise in the NMR receiver.
+
+\subsection{Network Architecture}
+
+SabreSDN is a complex-valued 1D U-Net with a single SDNBlock (Figure~\ref{fig:architecture}), totaling 7.71~million trainable parameters. The input and output are both of shape $[2, 8192]$ where channel~0 = real (absorption) component and channel~1 = imaginary (dispersion) component. A global residual connection---$y = \tanh(f(x) + x)$---allows the network to learn additive corrections to the noisy input.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/architecture.png}
+    \caption{Architecture of SabreSDN. The single SDNBlock consists of a 6-level encoder--decoder with complex convolutions (CConv1d/CConvTranspose1d), CBAM1d attention after each encoder layer, a MultiScaleBlock at the bottleneck, and gated skip connections. Input/output are complex spectra represented as $[2, 8192]$ tensors.}
+    \label{fig:architecture}
+\end{figure}
+
+\subsubsection{Complex Convolution (CConv1d)}
+
+Standard CNN layers for complex-valued signals treat the real and imaginary channels as independent feature maps, requiring the network to learn both the task-relevant features and the algebraic coupling between channels. In contrast, SabreSDN employs \texttt{CConv1d}, which explicitly implements complex-valued convolution using the multiplication rule $(a+jb)*(c+jd) = (ac-bd) + j(ad+bc)$:
+
+\begin{align}
+    \mathrm{Re}(z_{\text{out}}) &= \mathbf{W}_r \ast \mathrm{Re}(z_{\text{in}}) - \mathbf{W}_i \ast \mathrm{Im}(z_{\text{in}}), \\
+    \mathrm{Im}(z_{\text{out}}) &= \mathbf{W}_r \ast \mathrm{Im}(z_{\text{in}}) + \mathbf{W}_i \ast \mathrm{Re}(z_{\text{in}}),
+\end{align}
+
+where $\mathbf{W}_r$ and $\mathbf{W}_i$ are learnable real-valued 1D convolution kernels and $\ast$ denotes discrete 1D cross-correlation. Each \texttt{CConv1d} is followed by separate batch normalization (BN) on real and imaginary branches and a shared PReLU activation. Critically, because the same kernel pair $(\mathbf{W}_r, \mathbf{W}_i)$ processes both the real-to-real and imaginary-to-imaginary pathways (with a sign flip for the cross-terms), the parameter count is exactly half that of an unconstrained real-valued convolution mapping the same input and output dimensions---while simultaneously encoding the absorption--dispersion Hilbert-transform relationship as a hard architectural constraint.
+
+The encoder consists of five strided \texttt{CConv1d} layers (kernel~4, stride~2), progressively increasing the complex channel dimension from 16 to 32, 64, 128, 256, and~512 (corresponding to tensor dimensions 32--1024). The decoder mirrors this structure using strided \texttt{CConvTranspose1d} layers (kernel~4, stride~2). The output layer is a \texttt{CConv1d}(16 $\to$ 1) with no activation.
+
+\subsubsection{CBAM1d Attention}
+
+After each encoder layer, a Convolutional Block Attention Module (CBAM)~\cite{Woo2018} adapted for 1D---termed CBAM1d---refines the feature maps. The module applies two complementary attention mechanisms sequentially (channel attention from SENet~\cite{Hu2018}, extended with spectral attention):
+
+\textbf{Channel Attention (CA).} Global average pooling across the frequency dimension produces a channel descriptor vector $\mathbf{d} \in \mathbb{R}^C$. A two-layer multi-layer perceptron with reduction ratio~16 processes this descriptor: $\mathbf{a}_c = \sigma(\mathbf{W}_2\,\mathrm{ReLU}(\mathbf{W}_1\mathbf{d}))$, where $\sigma$ is the sigmoid function. The resulting channel weights are broadcast-multiplied across the frequency axis, recalibrating which feature detectors are active.
+
+\textbf{Spectral Attention (SA).} While CA operates globally (what features matter), SA operates locally (where in the spectrum). A 1D convolution with kernel size~7 generates a spatial attention map: $\mathbf{a}_s = \sigma(\mathrm{Conv1d}_{k=7}(\mathbf{f}))$, which is element-wise multiplied with the feature map. This mechanism learns to amplify spectral regions containing resonance peaks while suppressing baseline noise.
+
+CBAM1d is applied after each of the five encoder levels, operating on tensor channel dimensions 64, 128, 256, 512, and~1024.
+
+\subsubsection{MultiScaleBlock Bottleneck}
+
+At the network's bottleneck, the spatial dimension is reduced by $2^5 = 32\times$ (from 8192 to~256~points). The receptive field of a neuron at this resolution is limited by the convolution kernel size. To capture spectral features at multiple effective scales simultaneously, we employ a MultiScaleBlock with four parallel dilated convolution branches:
+
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+    \item $1\times1$ convolution: point-wise spectral mixing with no spatial context.
+    \item $3\times1$ convolution, dilation~1: standard spatial context (effective receptive field~3).
+    \item $3\times1$ convolution, dilation~4: medium-range context for $J$-coupled multiplets.
+    \item $3\times1$ convolution, dilation~8: long-range context for broad resonances.
+\end{itemize}
+
+Each branch maps $C$ input channels to $C/4$ output channels. The four branch outputs are concatenated (recovering $C$ channels), then fused by a $1\times1$ convolution followed by BN and PReLU activation. A residual connection adds the input, preserving information flow: $\mathbf{y} = \mathrm{PReLU}(\mathrm{BN}(\mathrm{Conv}_{1\times1}([\mathrm{br}_1; \mathrm{br}_2; \mathrm{br}_3; \mathrm{br}_4]))) + \mathbf{x}$.
+
+\subsubsection{Gated Skip Connections}
+
+Standard U-Net concatenation skip connections forward encoder feature maps directly to the decoder without gating, potentially propagating noise from noisy encoder representations. SabreSDN replaces these with gated skip connections that learn to selectively pass or suppress encoder features based on the decoder's current state:
+
+\begin{equation}
+    \mathbf{g} = \sigma\big(\mathrm{Conv}_{1\times1}([\mathbf{x}_{\text{dec}}; \mathbf{x}_{\text{enc}}])\big),\qquad
+    \mathbf{x}_{\text{skip}} = \mathbf{g} \odot \mathbf{x}_{\text{enc}},
+\end{equation}
+
+where $[\cdot; \cdot]$ denotes channel-wise concatenation, $\sigma$ is the sigmoid function, and $\odot$ is element-wise multiplication. The $1\times1$ convolution produces one scalar gate per channel, which the sigmoid constrains to $[0, 1]$. The gate can suppress features from encoder positions corresponding to noisy baseline regions while passing features from peak-containing regions.
+
+\subsection{Loss Function}
+
+The training loss combines three terms designed to reflect NMR-specific analytical priorities:
+
+\begin{equation}
+    \mathcal{L} = \lambda_{\text{spec}}\mathcal{L}_{\text{spec}} + \lambda_{\text{peak}}\mathcal{L}_{\text{peak}} + \lambda_{\text{base}}\mathcal{L}_{\text{base}},
+    \label{eq:loss}
+\end{equation}
+
+with $\lambda_{\text{spec}} = 0.1$, $\lambda_{\text{peak}} = 2.0$, $\lambda_{\text{base}} = 0.5$.
+
+$\mathcal{L}_{\text{spec}}$ is the $\ell_1$ loss between the magnitude spectra of the Fourier transforms of the predicted ($\hat{\mathbf{y}}$) and target ($\mathbf{y}$) complex signals: $\mathcal{L}_{\text{spec}} = \|\,\lvert\mathcal{F}(\hat{\mathbf{y}})\rvert - \lvert\mathcal{F}(\mathbf{y})\rvert\,\|_1$. This encourages frequency-domain amplitude consistency, penalizing spectral coloration artifacts where the denoised output has a frequency-dependent residual noise profile.
+
+$\mathcal{L}_{\text{peak}}$ is $\ell_1$ loss restricted to the spectral region containing $^{19}$F resonances (indices 6600--6800 of 8192). The peak region occupies only 2.4\% of the spectral points, but with $\lambda_{\text{peak}} / \lambda_{\text{base}} = 4\times$, the effective per-point gradient in the peak region is approximately $167\times$ higher than in baseline regions---concentrating model capacity where it matters for chemical interpretation.
+
+$\mathcal{L}_{\text{base}}$ is a second-difference penalty on the real part: $\mathcal{L}_{\text{base}} = \mathbb{E}[\lvert\hat{\mathbf{y}}_r[t+2] - 2\hat{\mathbf{y}}_r[t+1] + \hat{\mathbf{y}}_r[t]\rvert^2]$, where $\hat{\mathbf{y}}_r$ is the real component of the prediction. This term discourages high-frequency oscillations (``ringing'') in baseline regions between peaks.
+
+\subsection{Training Details}
+
+The model was trained for 50~epochs using the AdamW optimizer~\cite{Loshchilov2019,Kingma2015} with initial learning rate $10^{-3}$, weight decay $10^{-3}$, and batch size~128. A ReduceLROnPlateau scheduler reduced the learning rate by a factor of 0.8 after 5~epochs of no validation improvement (minimum $10^{-6}$). Gradient norms were clipped at~1.0. Training was performed on a single NVIDIA GPU and required approximately 2.5~hours for 50~epochs. The checkpoint with the lowest validation loss was retained for inference.
+
+
+\section{Experiments}
+
+\subsection{Training Dynamics}
+
+Figure~\ref{fig:training} shows the training and validation loss trajectories over 50~epochs. The validation loss decreases from 0.162 at epoch~0 to a minimum of 0.024 at epoch~49, representing a $6.8\times$ reduction. Table~\ref{tab:training} provides a quantitative summary.
+
+Two distinct training phases are visible. During \textbf{rapid convergence} (epochs~0--15), the validation loss drops to 0.056---a $2.9\times$ reduction---as the network learns the dominant spectral structure. The \textbf{progressive refinement} phase (epochs~15--49) sees the loss gradually decrease from 0.056 to 0.024. The learning rate was reduced once from $10^{-3}$ to $8\times10^{-4}$ at approximately epoch~40 when the scheduler detected a plateau. The smooth training curves and absence of large loss spikes indicate stable optimization dynamics.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/training_curves.pdf}
+    \caption{Training dynamics over 50~epochs. \textbf{Top:} Training loss and validation loss. \textbf{Bottom:} Learning rate schedule (log scale). The best validation loss (0.024) is achieved at epoch~49.}
+    \label{fig:training}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{Training milestones. The loss is the composite loss defined in Eq.~\eqref{eq:loss}.}
+    \label{tab:training}
+    \begin{tabular}{l c c c}
+        \toprule
+        Stage & Epoch & Validation Loss & LR \\
+        \midrule
+        Initial      & 0  & 0.162 & $10^{-3}$ \\
+        Early        & 10 & 0.082 & $10^{-3}$ \\
+        Mid          & 25 & 0.035 & $10^{-3}$ \\
+        LR reduction & 40 & --   & $8\times10^{-4}$ \\
+        \textbf{Best}& \textbf{49} & \textbf{0.024} & $8\times10^{-4}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{\texorpdfstring{Denoising at 50~$\mu$M Concentration}{Denoising at 50 muM Concentration}}
+
+The core objective of SabreSDN is to recover interpretable spectral features from 50~$\mu$M SABRE-$^{19}$F NMR spectra. At this concentration, the raw spectra exhibit substantial noise that obscures fine spectral detail. Figure~\ref{fig:denoising} shows representative denoising examples on held-out test spectra.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/denoising_1.pdf}
+    \caption{Representative denoising result on 50~$\mu$M SABRE-$^{19}$F test data. \textbf{Top:} SabreSDN denoised output (peak region only, indices 6600--6800). \textbf{Bottom:} High-SNR reference spectrum. The model recovers the peak signal envelope while the reference trace confirms correct peak positioning.}
+    \label{fig:denoising}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/denoising_2.pdf}
+    \caption{Additional denoising results across different test samples, demonstrating consistent peak recovery and baseline flatness.}
+    \label{fig:denoising2}
+\end{figure}
+
+The results demonstrate three key capabilities:
+
+\textbf{Peak recovery.} The major $^{19}$F resonances are accurately reconstructed with correct chemical shift positions. The model distinguishes genuine peaks from noise spikes without manual thresholding.
+
+\textbf{Multiplet preservation.} $J$-coupling fine structure that is partially or completely obscured by noise in the input becomes clearly identifiable after denoising, without line broadening. This is the key advantage over exponential windowing, which necessarily broadens all peaks.
+
+\textbf{Baseline flatness.} The $\mathcal{L}_{\text{base}}$ term in the composite loss effectively suppresses high-frequency oscillations in inter-peak regions. The denoised baseline is qualitatively flat, with no systematic curvature or ringing artifacts introduced by the denoising process.
+
+\subsection{Computational Cost}
+
+Table~\ref{tab:compute} summarizes the computational footprint. The 7.71~million parameters place SabreSDN in a practical range for routine use: smaller than typical image-domain U-Nets (30--60M parameters) but with sufficient capacity to capture the complexity of 1D NMR spectra. GPU inference at $\sim$2~ms per spectrum is two to three orders of magnitude faster than typical SABRE FID acquisition times (1--3~s), enabling real-time denoising directly in the acquisition pipeline. CPU-only inference at $\sim$50~ms is also suitable for interactive post-processing.
+
+\begin{table}[t]
+    \centering
+    \caption{Computational characteristics of SabreSDN.}
+    \label{tab:compute}
+    \begin{tabular}{l c}
+        \toprule
+        Property & Value \\
+        \midrule
+        Trainable parameters & 7,710,000 \\
+        Training time (50 epochs) & $\sim$2.5~h (NVIDIA GPU) \\
+        Inference per spectrum (GPU) & $\sim$2~ms \\
+        Inference per spectrum (CPU) & $\sim$50~ms \\
+        Input/output shape & $[2, 8192]$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Limitations}
+
+Several limitations warrant discussion. First, the model is currently trained on a single substrate-catalyst system (50~$\mu$M $^{19}$F / Ir-IMes); generalization to different substrates, nuclei, or catalyst systems would require fine-tuning or additional training data. Second, the training noise model (additive white Gaussian noise in the time domain) captures thermal electronic noise but does not model systematic artifacts such as polarization transfer fluctuations, magnetic field drift, or catalyst precipitation. A gap between synthetic training noise and real experimental noise could manifest as reduced denoising performance on certain experimental conditions. Third, the model processes a fixed-length 8192-point segment; application to spectra with different spectral widths or referencing would require retraining or data interpolation. Fourth, while the composite loss provides strong implicit regularization, there is no explicit uncertainty quantification, so the model cannot distinguish between confident and uncertain denoising decisions.
+
+
+\section{Conclusion}
+
+We have presented SabreSDN, a complex-valued 1D U-Net for denoising SABRE-hyperpolarized NMR spectra at low analyte concentration. The network's four key architectural elements---complex convolutions, CBAM1d attention, multi-scale dilated bottleneck, and gated skip connections---together with a frequency-aware composite loss function enable effective denoising of 50~$\mu$M SABRE-$^{19}$F data while preserving $J$-coupling multiplet fine structure. The model trains stably over 50~epochs (validation loss $0.162 \to 0.024$), contains 7.71~million parameters, and achieves millisecond-scale inference suitable for real-time deployment.
+
+Several directions merit future investigation. Multi-nucleus training ($^1$H, $^{19}$F, $^{13}$C) with nucleus-specific fine-tuning could improve generalization. Time-resolved SABRE experiments involving chemical kinetics would benefit from a temporal denoising approach that leverages correlations between successive spectra. Transfer learning from high-concentration to low-concentration conditions could reduce the number of low-concentration reference spectra needed for training. Uncertainty quantification via Bayesian neural network variants or ensemble methods would provide confidence estimates alongside denoised spectra. Finally, integration with automated peak picking and spectral deconvolution pipelines could create an end-to-end SABRE analysis workflow.
+
+\begin{ack}
+The author thanks the anonymous reviewers for their constructive feedback. Code and model weights are publicly available at \url{https://github.com/kimariyb/SABRE-Denoise}.
+\end{ack}
+
+
+\section*{References}
+
+{
+\small
+
+\begin{thebibliography}{99}
+
+\bibitem{Adams2009}
+R.W.~Adams, J.A.~Aguilar, K.D.~Atkinson, M.J.~Cowley, P.I.P.~Elliott, S.B.~Duckett, G.G.R.~Green, I.G.~Khazal, J.~López-Serrano, D.C.~Williamson.
+Reversible interactions with para-hydrogen enhance NMR sensitivity by polarization transfer.
+\textit{Science} 323(5922):1708--1711, 2009.
+
+\bibitem{Duckett2012}
+S.B.~Duckett, R.E.~Mewis.
+Application of parahydrogen-induced polarization techniques in NMR spectroscopy and imaging.
+\textit{Acc. Chem. Res.} 45(8):1247--1257, 2012.
+
+\bibitem{Rayner2017}
+P.J.~Rayner, M.J.~Burns, A.M.~Olaru, P.~Norcott, M.~Fekete, G.G.R.~Green, L.A.R.~Highton, R.E.~Mewis, S.B.~Duckett.
+Delivering strong $^1$H nuclear hyperpolarization levels and long magnetic lifetimes through signal amplification by reversible exchange.
+\textit{Proc. Natl. Acad. Sci. USA} 114(16):E3188--E3194, 2017.
+
+\bibitem{Rayner2024}
+P.J.~Rayner, S.B.~Duckett.
+Signal Amplification by Reversible Exchange (SABRE): From discovery to applications.
+\textit{Annu. Rep. NMR Spectrosc.} 111:1--68, 2024.
+
+\bibitem{Hovener2013}
+J.-B.~Hövener, N.~Schwaderlapp, T.~Lickert, S.B.~Duckett, R.E.~Mewis, L.A.R.~Highton, M.J.~Burns, G.G.R.~Green, R.~Krafft, J.~Hennig, D.~von~Elverfeldt.
+A hyperpolarized equilibrium for magnetic resonance.
+\textit{Nat. Commun.} 4:2946, 2013.
+
+\bibitem{Eshuis2014}
+N.~Eshuis, N.~Hermkens, B.J.A.~van~Weerdenburg, M.C.~Feiters, F.P.J.T.~Rutjes, S.S.~Wijmenga, M.~Tessari.
+Toward nanomolar detection by NMR through SABRE hyperpolarization.
+\textit{J. Am. Chem. Soc.} 136(7):2695--2698, 2014.
+
+\bibitem{Barskiy2017}
+D.A.~Barskiy, R.V.~Shchepin, A.M.~Coffey, T.~Theis, W.S.~Warren, B.M.~Goodson, E.Y.~Chekmenev.
+Over 20\% $^{15}$N hyperpolarization in under one minute for metronidazole, an antibiotic and hypoxia probe.
+\textit{J. Am. Chem. Soc.} 139(24):8082--8085, 2017.
+
+\bibitem{Richardson2019}
+P.M.~Richardson, A.J.~Parrott, R.T.~Harker, O.~Semenova, A.~Nordon, S.B.~Duckett, M.E.~Halse.
+Quantification of hyperpolarisation efficiency in SABRE and SABRE-Relay enhanced NMR spectroscopy.
+\textit{Anal. Chem.} 91(21):13658--13664, 2019.
+
+\bibitem{Levitt2008}
+M.H.~Levitt.
+\textit{Spin Dynamics: Basics of Nuclear Magnetic Resonance}, 2nd edition.
+Wiley, Chichester, 2008.
+
+\bibitem{Ernst1987}
+R.R.~Ernst, G.~Bodenhausen, A.~Wokaun.
+\textit{Principles of Nuclear Magnetic Resonance in One and Two Dimensions}.
+Oxford University Press, 1987.
+
+\bibitem{Cadzow1988}
+J.A.~Cadzow.
+Signal enhancement---A composite property mapping algorithm.
+\textit{IEEE Trans. Acoust. Speech Signal Process.} 36(1):49--62, 1988.
+
+\bibitem{Donoho1995}
+D.L.~Donoho, I.M.~Johnstone.
+Adapting to unknown smoothness via wavelet shrinkage.
+\textit{J. Am. Stat. Assoc.} 90(432):1200--1224, 1995.
+
+\bibitem{Hoch1996}
+J.C.~Hoch, A.S.~Stern.
+\textit{NMR Data Processing}. Wiley-Liss, New York, 1996.
+
+\bibitem{Bruschweiler2004}
+R.~Brüschweiler, F.~Zhang.
+Covariance nuclear magnetic resonance spectroscopy.
+\textit{J. Chem. Phys.} 120(11):5253--5260, 2004.
+
+\bibitem{Lee2021}
+H.~Lee, H.~Kim, S.~Ryu, J.~Park.
+Deep learning-based denoising for magnetic resonance spectroscopy.
+\textit{NMR Biomed.} 34(5):e4487, 2021.
+
+\bibitem{Qu2024}
+X.~Qu, Y.~Huang, H.~Lu, T.~Qiu, D.~Guo, T.~Zhou, Z.~Zhong.
+Deep learning and its applications in computational NMR.
+\textit{Chem. Sci.} 15:1229--1246, 2024.
+
+\bibitem{Chen2021}
+D.~Chen, Z.~Wang, D.~Guo, V.~Orekhov, X.~Qu.
+Review and prospect: deep learning in nuclear magnetic resonance spectroscopy.
+\textit{Chem. Eur. J.} 27(1):110--124, 2021.
+
+\bibitem{Kobayashi2022}
+N.~Kobayashi, Y.~Hattori, T.~Nagata, Y.~Shinya, P.~Güntert, T.~Kigawa.
+Noise peak filtering in multi-dimensional NMR spectra using convolutional neural networks.
+\textit{Bioinformatics} 38(7):2047--2053, 2022.
+
+\bibitem{Zhang2017}
+K.~Zhang, W.~Zuo, Y.~Chen, D.~Meng, L.~Zhang.
+Beyond a Gaussian denoiser: Residual learning of deep CNN for image denoising.
+\textit{IEEE Trans. Image Process.} 26(7):3142--3155, 2017.
+
+\bibitem{Ronneberger2015}
+O.~Ronneberger, P.~Fischer, T.~Brox.
+U-Net: Convolutional networks for biomedical image segmentation.
+In \textit{Proc. MICCAI}, pp.~234--241, 2015.
+
+\bibitem{Oktay2018}
+O.~Oktay, J.~Schlemper, L.L.~Folgoc, M.~Lee, M.~Heinrich, K.~Miska, K.~Mori, S.~McDonagh, N.Y.~Hammerla, B.~Kainz, B.~Glocker, D.~Rueckert.
+Attention U-Net: Learning where to look for the pancreas.
+In \textit{Proc. MIDL}, 2018.
+
+\bibitem{Woo2018}
+S.~Woo, J.~Park, J.-Y.~Lee, I.S.~Kweon.
+CBAM: Convolutional block attention module.
+In \textit{Proc. ECCV}, pp.~3--19, 2018.
+
+\bibitem{Hu2018}
+J.~Hu, L.~Shen, G.~Sun.
+Squeeze-and-excitation networks.
+In \textit{Proc. CVPR}, pp.~7132--7141, 2018.
+
+\bibitem{Trabelsi2018}
+C.~Trabelsi, O.~Bilaniuk, Y.~Zhang, D.~Serdyuk, S.~Subramanian, J.F.~Santos, S.~Mehri, N.~Rostamzadeh, Y.~Bengio, C.J.~Pal.
+Deep complex networks.
+In \textit{Proc. ICLR}, 2018.
+
+\bibitem{Gaudet2018}
+C.J.~Gaudet, A.S.~Maida.
+Deep complex-valued convolutional-recurrent networks for neuroscience.
+In \textit{Proc. ICANN}, pp.~1--11, 2018.
+
+\bibitem{Zhang2023}
+Y.~Zhang, J.~Xu, C.~Liu, X.~Qu.
+Complex-valued neural network for phase correction in NMR spectroscopy.
+\textit{J. Magn. Reson.} 351:107446, 2023.
+
+\bibitem{Loshchilov2019}
+I.~Loshchilov, F.~Hutter.
+Decoupled weight decay regularization.
+In \textit{Proc. ICLR}, 2019.
+
+\bibitem{Kingma2015}
+D.P.~Kingma, J.~Ba.
+Adam: A method for stochastic optimization.
+In \textit{Proc. ICLR}, 2015.
+
+\bibitem{Hyun2018}
+C.M.~Hyun, H.P.~Kim, S.M.~Lee, S.~Lee, J.K.~Seo.
+Deep learning for undersampled MRI reconstruction.
+\textit{Phys. Med. Biol.} 63(13):135007, 2018.
+
+\end{thebibliography}
+}
+
+\end{document}

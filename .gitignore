@@ -163,5 +163,4 @@ cython_debug/
 data/
 checkpoints/
 CLAUDE.md
-paper/
 .vscode/
