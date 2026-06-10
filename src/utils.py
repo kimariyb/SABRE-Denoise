@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import numpy as np
 from dataset import SABREDataset
 
 
@@ -52,3 +52,5 @@ def calc_loss(
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+

@@ -2,10 +2,19 @@ import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from baselines.utils import fft, ifft
 from torch.utils.data import Dataset
 from typing import Tuple, List
 from tqdm import tqdm
+
+
+def fft(fid: np.ndarray) -> np.ndarray:
+    spec = np.fft.fftshift(np.fft.fft(fid))
+    return spec
+
+
+def ifft(spec: np.ndarray) -> np.ndarray:
+    fid = np.fft.ifft(np.fft.ifftshift(spec))
+    return fid
 
 
 def addNoise(spectra: np.ndarray, noise_level: float) -> np.ndarray:
