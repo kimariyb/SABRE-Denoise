@@ -105,10 +105,12 @@ SabreSDN is a complex-valued 1D U-Net with a single SDNBlock (Figure~\ref{fig:ar
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\textwidth]{figures/architecture.png}
-    \caption{Architecture of SabreSDN. The single SDNBlock consists of a 6-level encoder--decoder with complex convolutions (CConv1d/CConvTranspose1d), CBAM1d attention after each encoder layer, a MultiScaleBlock at the bottleneck, and gated skip connections. Input/output are complex spectra represented as $[2, 8192]$ tensors.}
+    \includegraphics[width=\textwidth]{figures/nature_fig1_architecture_gpt.png}
+    \caption{Architecture and design logic of SabreSDN. \textbf{a,} Complex-valued U-Net for mapping noisy complex spectra to denoised complex spectra. \textbf{b--d,} Complex convolution, CBAM attention, and gated skip connection mechanisms.}
     \label{fig:architecture}
 \end{figure}
+
+The architecture keeps the signal representation one-dimensional throughout the network, preserving the prior that a spectral feature should be processed similarly at any chemical shift. Because down-sampling and up-sampling are implemented with complex convolutions, the real and imaginary branches remain coupled at every resolution rather than being treated as unrelated feature maps.
 
 \subsubsection{Complex Convolution (CConv1d)}
 
@@ -174,6 +176,15 @@ $\mathcal{L}_{\text{peak}}$ is $\ell_1$ loss restricted to the spectral region c
 
 $\mathcal{L}_{\text{base}}$ is a second-difference penalty on the real part: $\mathcal{L}_{\text{base}} = \mathbb{E}[\lvert\hat{\mathbf{y}}_r[t+2] - 2\hat{\mathbf{y}}_r[t+1] + \hat{\mathbf{y}}_r[t]\rvert^2]$, where $\hat{\mathbf{y}}_r$ is the real component of the prediction. This term discourages high-frequency oscillations (``ringing'') in baseline regions between peaks.
 
+The loss reflects the analytical priorities of low-concentration SABRE NMR: peak positions and multiplet substructure must be preserved, while the baseline must remain sufficiently flat for subsequent integration or peak picking. The explicit peak mask reduces the imbalance between the small chemically informative region and the much larger baseline region, while the baseline term discourages ringing outside the peaks.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.78\textwidth]{figures/nature_fig4_loss_deployment.pdf}
+    \caption{Loss weighting and deployment constraints. \textbf{a,} Composite-loss weights. \textbf{b,} Peak-region emphasis. \textbf{c,} Inference latency relative to acquisition.}
+    \label{fig:loss-deployment}
+\end{figure}
+
 \subsection{Training Details}
 
 The model was trained for 50~epochs using the AdamW optimizer~\cite{Loshchilov2019,Kingma2015} with initial learning rate $10^{-3}$, weight decay $10^{-3}$, and batch size~128. A ReduceLROnPlateau scheduler reduced the learning rate by a factor of 0.8 after 5~epochs of no validation improvement (minimum $10^{-6}$). Gradient norms were clipped at~1.0. Training was performed on a single NVIDIA GPU and required approximately 2.5~hours for 50~epochs. The checkpoint with the lowest validation loss was retained for inference.
@@ -189,8 +200,8 @@ Two distinct training phases are visible. During \textbf{rapid convergence} (epo
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\textwidth]{figures/training_curves.pdf}
-    \caption{Training dynamics over 50~epochs. \textbf{Top:} Training loss and validation loss. \textbf{Bottom:} Learning rate schedule (log scale). The best validation loss (0.024) is achieved at epoch~49.}
+    \includegraphics[width=0.78\textwidth]{figures/nature_fig2_training.pdf}
+    \caption{Training dynamics and optimization summary. \textbf{a,} Training and validation loss. \textbf{b,} Learning-rate schedule. \textbf{c,} Rolling validation-loss trend. \textbf{d,} Dataset and optimization summary.}
     \label{fig:training}
 \end{figure}
 
@@ -211,22 +222,19 @@ Two distinct training phases are visible. During \textbf{rapid convergence} (epo
     \end{tabular}
 \end{table}
 
+\subsection{Evaluation Metrics}
+
+We evaluate SabreSDN using metrics that correspond to practical post-denoising tasks. The primary metric is the composite validation loss in Eq.~\eqref{eq:loss}, which combines whole-spectrum amplitude fidelity, peak-region reconstruction, and baseline smoothness. We additionally inspect peak-region absolute error over $\Omega_p=[6600,6800]$, off-peak baseline fluctuation, and inference latency per spectrum. These quantities are complementary: a spectrum with low peak error but high baseline fluctuation can still be unsuitable for automated integration, while an overly smooth spectrum with suppressed multiplet splitting would be chemically misleading.
+
 \subsection{\texorpdfstring{Denoising at 50~$\mu$M Concentration}{Denoising at 50 muM Concentration}}
 
 The core objective of SabreSDN is to recover interpretable spectral features from 50~$\mu$M SABRE-$^{19}$F NMR spectra. At this concentration, the raw spectra exhibit substantial noise that obscures fine spectral detail. Figure~\ref{fig:denoising} shows representative denoising examples on held-out test spectra.
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\textwidth]{figures/denoising_1.pdf}
-    \caption{Representative denoising result on 50~$\mu$M SABRE-$^{19}$F test data. \textbf{Top:} SabreSDN denoised output (peak region only, indices 6600--6800). \textbf{Bottom:} High-SNR reference spectrum. The model recovers the peak signal envelope while the reference trace confirms correct peak positioning.}
+    \includegraphics[width=0.78\textwidth]{figures/nature_fig3_results.pdf}
+    \caption{Representative denoising behavior on 50~$\mu$M SABRE-$^{19}$F test spectra. \textbf{a,} Held-out input and SabreSDN output in the peak region. \textbf{b,} Additional held-out examples. \textbf{c,} Off-peak RMS comparison. \textbf{d,} Recovered peak-region envelope.}
     \label{fig:denoising}
-\end{figure}
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\textwidth]{figures/denoising_2.pdf}
-    \caption{Additional denoising results across different test samples, demonstrating consistent peak recovery and baseline flatness.}
-    \label{fig:denoising2}
 \end{figure}
 
 The results demonstrate three key capabilities:
@@ -258,6 +266,12 @@ Table~\ref{tab:compute} summarizes the computational footprint. The 7.71~million
     \end{tabular}
 \end{table}
 
+\section{Discussion}
+
+The central result of this study is that low-concentration SABRE-$^{19}$F spectra can be denoised effectively by combining a physics-aligned complex representation with a U-Net-style restoration backbone. The gain does not arise from model size alone. Rather, complex convolutions constrain the real and imaginary channels to be processed as a coupled pair, CBAM1d attention emphasizes chemically occupied frequency regions, the dilated bottleneck captures line-shape context beyond a single kernel width, and gated skip connections reduce the risk that high-resolution noise is copied directly into the decoder output.
+
+This design targets a regime in which conventional denoising is fragile. Exponential windowing broadens peaks, and Cadzow-style rank truncation depends on an unknown signal rank that can be unstable when weak peaks coexist with strong resonances. SabreSDN instead learns a nonlinear mapping while preserving the input grid and phase structure. Its millisecond-scale inference time also makes it suitable as a signal-recovery module within online SABRE workflows, although peak assignment, concentration quantification, uncertainty estimation, and kinetic modeling remain downstream tasks that require additional validation.
+
 \subsection{Limitations}
 
 Several limitations warrant discussion. First, the model is currently trained on a single substrate-catalyst system (50~$\mu$M $^{19}$F / Ir-IMes); generalization to different substrates, nuclei, or catalyst systems would require fine-tuning or additional training data. Second, the training noise model (additive white Gaussian noise in the time domain) captures thermal electronic noise but does not model systematic artifacts such as polarization transfer fluctuations, magnetic field drift, or catalyst precipitation. A gap between synthetic training noise and real experimental noise could manifest as reduced denoising performance on certain experimental conditions. Third, the model processes a fixed-length 8192-point segment; application to spectra with different spectral widths or referencing would require retraining or data interpolation. Fourth, while the composite loss provides strong implicit regularization, there is no explicit uncertainty quantification, so the model cannot distinguish between confident and uncertain denoising decisions.
@@ -273,7 +287,9 @@ Several directions merit future investigation. Multi-nucleus training ($^1$H, $^
 The author thanks the anonymous reviewers for their constructive feedback. Code and model weights are publicly available at \url{https://github.com/kimariyb/SABRE-Denoise}.
 \end{ack}
 
-
+\clearpage
+\phantomsection
+\label{sec:refs_start}
 \section*{References}
 
 {

@@ -1,16 +1,5 @@
 \relax 
 \providecommand\hyper@newdestlabel[2]{}
-\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
-\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
-\global\let\oldnewlabel\newlabel
-\gdef\newlabel#1#2{\newlabelxx{#1}#2}
-\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
-\AtEndDocument{\ifx\hyper@anchor\@undefined
-\let\newlabel\oldnewlabel
-\fi}
-\fi}
-\global\let\hyper@last\relax 
-\gdef\HyperFirstAtBeginDocument#1{#1}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \citation{Adams2009}
@@ -58,34 +47,44 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Attention Mechanisms and U-Net Variants}{3}{subsection.2.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {3}Method}{3}{section.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Data Acquisition and Preprocessing}{3}{subsection.3.1}\protected@file@percent }
-\citation{Woo2018}
-\citation{Hu2018}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Architecture and design logic of SabreSDN. \textbf  {a,} Complex-valued U-Net for mapping noisy complex spectra to denoised complex spectra. \textbf  {b--d,} Complex convolution, CBAM attention, and gated skip connection mechanisms.}}{4}{figure.1}\protected@file@percent }
+\newlabel{fig:architecture}{{1}{4}{Architecture and design logic of SabreSDN. \textbf {a,} Complex-valued U-Net for mapping noisy complex spectra to denoised complex spectra. \textbf {b--d,} Complex convolution, CBAM attention, and gated skip connection mechanisms}{figure.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Network Architecture}{4}{subsection.3.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}Complex Convolution (CConv1d)}{4}{subsubsection.3.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}CBAM1d Attention}{4}{subsubsection.3.2.2}\protected@file@percent }
-\citation{Loshchilov2019}
-\citation{Kingma2015}
+\citation{Woo2018}
+\citation{Hu2018}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}CBAM1d Attention}{5}{subsubsection.3.2.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.3}MultiScaleBlock Bottleneck}{5}{subsubsection.3.2.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.4}Gated Skip Connections}{5}{subsubsection.3.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Loss Function}{5}{subsection.3.3}\protected@file@percent }
-\newlabel{eq:loss}{{4}{5}{Loss Function}{equation.3.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Training Details}{5}{subsection.3.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Training milestones. The loss is the composite loss defined in Eq.\nobreakspace  {}\eqref  {eq:loss}.}}{6}{table.1}\protected@file@percent }
-\newlabel{tab:training}{{1}{6}{Training milestones. The loss is the composite loss defined in Eq.~\eqref {eq:loss}}{table.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Experiments}{6}{section.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Training Dynamics}{6}{subsection.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Denoising at 50\nobreakspace  {}$\mu $M Concentration}{6}{subsection.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Computational Cost}{6}{subsection.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Limitations}{6}{subsection.4.4}\protected@file@percent }
+\citation{Loshchilov2019}
+\citation{Kingma2015}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Loss weighting and deployment constraints. \textbf  {a,} Composite-loss weights. \textbf  {b,} Peak-region emphasis. \textbf  {c,} Inference latency relative to acquisition.}}{6}{figure.2}\protected@file@percent }
+\newlabel{fig:loss-deployment}{{2}{6}{Loss weighting and deployment constraints. \textbf {a,} Composite-loss weights. \textbf {b,} Peak-region emphasis. \textbf {c,} Inference latency relative to acquisition}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Loss Function}{6}{subsection.3.3}\protected@file@percent }
+\newlabel{eq:loss}{{4}{6}{Loss Function}{equation.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Training Details}{6}{subsection.3.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Training dynamics and optimization summary. \textbf  {a,} Training and validation loss. \textbf  {b,} Learning-rate schedule. \textbf  {c,} Rolling validation-loss trend. \textbf  {d,} Dataset and optimization summary.}}{7}{figure.3}\protected@file@percent }
+\newlabel{fig:training}{{3}{7}{Training dynamics and optimization summary. \textbf {a,} Training and validation loss. \textbf {b,} Learning-rate schedule. \textbf {c,} Rolling validation-loss trend. \textbf {d,} Dataset and optimization summary}{figure.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Training milestones. The loss is the composite loss defined in Eq.~\eqref  {eq:loss}.}}{7}{table.1}\protected@file@percent }
+\newlabel{tab:training}{{1}{7}{Training milestones. The loss is the composite loss defined in Eq.~\eqref {eq:loss}}{table.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Experiments}{7}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Training Dynamics}{7}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Evaluation Metrics}{7}{subsection.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Representative denoising behavior on 50~$\mu $M SABRE-$^{19}$F test spectra. \textbf  {a,} Held-out input and SabreSDN output in the peak region. \textbf  {b,} Additional held-out examples. \textbf  {c,} Off-peak RMS comparison. \textbf  {d,} Recovered peak-region envelope.}}{8}{figure.4}\protected@file@percent }
+\newlabel{fig:denoising}{{4}{8}{Representative denoising behavior on 50~$\mu $M SABRE-$^{19}$F test spectra. \textbf {a,} Held-out input and SabreSDN output in the peak region. \textbf {b,} Additional held-out examples. \textbf {c,} Off-peak RMS comparison. \textbf {d,} Recovered peak-region envelope}{figure.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Denoising at 50~$\mu $M Concentration}{8}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Computational Cost}{8}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{8}{section.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Computational characteristics of SabreSDN.}}{9}{table.2}\protected@file@percent }
+\newlabel{tab:compute}{{2}{9}{Computational characteristics of SabreSDN}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Limitations}{9}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{9}{section.6}\protected@file@percent }
 \bibcite{Adams2009}{1}
 \bibcite{Duckett2012}{2}
 \bibcite{Rayner2017}{3}
 \bibcite{Rayner2024}{4}
 \bibcite{Hovener2013}{5}
 \bibcite{Eshuis2014}{6}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Computational characteristics of SabreSDN.}}{7}{table.2}\protected@file@percent }
-\newlabel{tab:compute}{{2}{7}{Computational characteristics of SabreSDN}{table.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Conclusion}{7}{section.5}\protected@file@percent }
 \bibcite{Barskiy2017}{7}
 \bibcite{Richardson2019}{8}
 \bibcite{Levitt2008}{9}
@@ -105,16 +104,9 @@
 \bibcite{Hu2018}{23}
 \bibcite{Trabelsi2018}{24}
 \bibcite{Gaudet2018}{25}
+\newlabel{sec:refs_start}{{6}{10}{Conclusion}{section*.2}{}}
 \bibcite{Zhang2023}{26}
 \bibcite{Loshchilov2019}{27}
 \bibcite{Kingma2015}{28}
 \bibcite{Hyun2018}{29}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Architecture of SabreSDN. The single SDNBlock consists of a 6-level encoder--decoder with complex convolutions (CConv1d/CConvTranspose1d), CBAM1d attention after each encoder layer, a MultiScaleBlock at the bottleneck, and gated skip connections. Input/output are complex spectra represented as $[2, 8192]$ tensors.}}{9}{figure.1}\protected@file@percent }
-\newlabel{fig:architecture}{{1}{9}{Architecture of SabreSDN. The single SDNBlock consists of a 6-level encoder--decoder with complex convolutions (CConv1d/CConvTranspose1d), CBAM1d attention after each encoder layer, a MultiScaleBlock at the bottleneck, and gated skip connections. Input/output are complex spectra represented as $[2, 8192]$ tensors}{figure.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Training dynamics over 50\nobreakspace  {}epochs. \textbf  {Top:} Training loss and validation loss. \textbf  {Bottom:} Learning rate schedule (log scale). The best validation loss (0.024) is achieved at epoch\nobreakspace  {}49.}}{10}{figure.2}\protected@file@percent }
-\newlabel{fig:training}{{2}{10}{Training dynamics over 50~epochs. \textbf {Top:} Training loss and validation loss. \textbf {Bottom:} Learning rate schedule (log scale). The best validation loss (0.024) is achieved at epoch~49}{figure.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Representative denoising result on 50\nobreakspace  {}$\mu $M SABRE-$^{19}$F test data. \textbf  {Top:} SabreSDN denoised output (peak region only, indices 6600--6800). \textbf  {Bottom:} High-SNR reference spectrum. The model recovers the peak signal envelope while the reference trace confirms correct peak positioning.}}{10}{figure.3}\protected@file@percent }
-\newlabel{fig:denoising}{{3}{10}{Representative denoising result on 50~$\mu $M SABRE-$^{19}$F test data. \textbf {Top:} SabreSDN denoised output (peak region only, indices 6600--6800). \textbf {Bottom:} High-SNR reference spectrum. The model recovers the peak signal envelope while the reference trace confirms correct peak positioning}{figure.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Additional denoising results across different test samples, demonstrating consistent peak recovery and baseline flatness.}}{11}{figure.4}\protected@file@percent }
-\newlabel{fig:denoising2}{{4}{11}{Additional denoising results across different test samples, demonstrating consistent peak recovery and baseline flatness}{figure.4}{}}
 \gdef \@abspage@last{11}
